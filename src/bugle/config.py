@@ -6,7 +6,6 @@ dependency. All settings have sane localhost defaults.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pydantic_settings
@@ -28,8 +27,17 @@ class Settings(pydantic_settings.BaseSettings):
     #: Path to the built frontend (Vite `web/dist`). Serve statically when present.
     static_dir: str = "web/dist"
 
-    #: Optional bearer token protecting write endpoints. Empty = no auth (localhost).
-    write_token: str = ""
+    #: Secret bearer token required for machine ingestion (Hermes).
+    service_token: str = ""
+
+    #: Email address matching Cloudflare Access authenticated user header.
+    admin_email: str = "gaurav.singh.86@gmail.com"
+
+    #: Whether anonymous access to public briefs is enabled.
+    public_enabled: bool = False
+
+    #: Whether dev mode is enabled (allows localhost requests admin access without CF headers).
+    dev_mode: bool = False
 
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="BUGLE_",
