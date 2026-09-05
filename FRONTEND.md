@@ -5,28 +5,36 @@
 
 ---
 
-## 1. Product & Design Philosophy
+## 1. Product & Design Philosophy: Reading First
 
-Bugle transforms multi-source web investigations and automated research syntheses (powered by Hermes and Google Antigravity) into an authoritative, elegant, personal intelligence feed.
+Bugle transforms multi-source web investigations and automated research syntheses into an authoritative, elegant, personal intelligence briefing.
 
-### Core Tenets
+### Core Principles
 
-1. **Reading-First Experience**
-   - The primary objective of the interface is **uninterrupted, comfortable long-form reading**.
-   - UI chrome and metadata remain secondary to the narrative prose.
-   - Mobile page load immediately presents the latest investigation without above-the-fold dashboard clutter.
+1. **Reading-First Experience (The Investigation is the Hero)**
+   - The primary objective of the interface is **uninterrupted, comfortable reading**.
+   - The investigation title, executive synthesis, and narrative prose are the dominant elements.
+   - Badges, pills, and metadata must **support the content, not compete with it**.
+   - The eye should always flow naturally:
+     $$\text{CATEGORY} \longrightarrow \text{TITLE} \longrightarrow \text{SUMMARY} \longrightarrow \text{READ}$$
+     *(Never: Badge $\rightarrow$ Badge $\rightarrow$ Price $\rightarrow$ Icon $\rightarrow$ Title!)*
 
-2. **Radical Provenance & Transparency**
-   - Every brief prominently exposes its underlying verification audit: verified claims, supporting citations, author/publisher reliability ratings, token expenditure, and model engine attribution.
+2. **Kill the Pills for Non-Badges**
+   - Reading duration, relative time, generation cost, and evidence counts are **supporting metadata**, NOT badges.
+   - They are rendered as subdued inline text with subtle dot dividers, never enclosed in high-contrast colored pills.
 
-3. **Contextual Multi-Device Strategy (Desktop vs. Mobile)**
-   - **Desktop (Workstation Mode)**: Multi-column research cockpit with persistent sidebar navigation, quick-nav exploration tiles, aggregate spend metrics, and split-screen narrative + claims audit sidebar.
-   - **Mobile (Reader Mode)**: Clean, distraction-free blog-feed view with a sticky blurred header, persistent thumb-friendly bottom navigation bar, safe-area inset compliance for notched iPhones, and a dedicated compact search tab.
+3. **Radical Provenance & Transparency**
+   - Every brief prominently exposes its underlying verification audit: verified claims, supporting citations, publisher reliability ratings, token expenditure, and model engine attribution.
 
-4. **Speed & Zero Friction**
-   - Pure client-side hash routing (`#/`, `#/search`, `#/saved`, `#/archive`, `#/brief/:id`).
+4. **Contextual Multi-Device Strategy**
+   - **Desktop (Cockpit Mode)**: Multi-column layout with persistent sidebar navigation, quick-nav exploration tiles, aggregate spend metrics, and split-screen narrative + claims audit sidebar. Flush sticky back bar with zero top padding gap.
+   - **Mobile (Reader Mode)**: Distraction-free feed with a sticky blurred header, persistent thumb-friendly bottom navigation bar, safe-area inset compliance (`var(--sat)`, `var(--sab)`) for notched/Dynamic Island iPhones, edge-to-edge docked sticky back bar, and a dedicated compact search tab.
+
+5. **Speed & Zero Friction**
+   - Pure client-side hash routing (`#/`, `#/search`, `#/saved`, `#/archive`, `#/profile`, `#/brief/:id`).
    - Instant optimistic bookmarking and search history synced to `localStorage`.
    - Native Web Share API integration for iOS/Android sharing.
+   - `Cache-Control: no-cache, no-store, must-revalidate` for `index.html` so mobile browsers never get stuck on stale bundles.
 
 ---
 
@@ -41,7 +49,7 @@ Bugle utilizes a refined dark theme designed for extended evening reading sessio
   /* Surface Layers */
   --bg: #0d1117;           /* Deep Canvas (App background) */
   --bg-secondary: #161b22; /* Card surfaces, header bars, inputs */
-  --bg-tertiary: #21262d;  /* Pills, interactive hover states, chips */
+  --bg-tertiary: #21262d;  /* Interactive hover states, secondary tiles */
 
   /* Structural Borders */
   --border: #30363d;       /* Standard borders, card dividers */
@@ -72,194 +80,130 @@ Bugle utilizes a refined dark theme designed for extended evening reading sessio
 }
 ```
 
-### 2.2 Typography Scale
+---
 
-| Token / Context | Font Family | Size | Weight | Line Height | Usage |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **App Title** | System Sans | `1.15rem` | 700 | 1.2 | Header branding, modal titles |
-| **Headline (Featured)** | System Sans | `1.30rem` (mobile: `1.15rem`) | 700 | 1.3 | First dispatch on home feed |
-| **Headline (Standard)** | System Sans | `1.05rem` | 600 | 1.35 | Investigation titles in feed |
-| **Editorial Narrative** | Editorial Serif (`Merriweather`, `Georgia`) | `1.02rem` | 400 | 1.68 | Deep research brief body text |
-| **UI Secondary** | System Sans | `0.85rem` | 400 | 1.5 | Excerpts, descriptions |
-| **Micro Labels & Badges** | System Sans | `0.72rem – 0.78rem` | 600 | 1.0 | Category pills, topic chips, depth tags |
-| **Data & Shortcuts** | Monospace (`SFMono-Regular`, `Menlo`) | `0.72rem` | 500 | 1.0 | Cost tags (`$0.014`), `⌘ K`, model name |
+## 3. Strict Badge Taxonomy & Metadata System
+
+All badges throughout Bugle are generated from a single unified component: `<Badge variant="..." />`.
+
+### 3.1 Shared Badge Geometry
+All badge variants share the exact same physical dimensions:
+- **Height**: `22px`
+- **Border-radius**: `5px`
+- **Padding**: `0 8px`
+- **Font-size**: `0.72rem` (`500` weight)
+- **Alignment**: `inline-flex; align-items: center; justify-content: center; gap: 5px; line-height: 1;`
+- **Box-sizing**: `border-box; white-space: nowrap; user-select: none;`
+
+### 3.2 Semantic Variants
+
+| Variant Component | Purpose | Palette & Typography | Visual Treatment | Examples |
+| :--- | :--- | :--- | :--- | :--- |
+| `<CategoryBadge />` | Investigation topic domain | Gold / amber (`#e3b341`) | Tinted `rgba(210,153,34,0.1)`, 1px border | `Technology`, `AI`, `Markets`, `Security` |
+| `<StatusBadge />` | Lifecycle / freshness state | Emerald green (`#3fb950`) | Tinted `rgba(63,185,80,0.12)`, 5px status dot | `Latest Dispatch`, `High confidence` |
+| `<TechnicalTag />` | Model engine, depth, taxonomy | Neutral blue-gray (`#8b949e`) | Monospace, `rgba(110,118,129,0.1)`, quiet border | `deepseek-v4-flash`, `standard`, `web` |
+| `<AccessBadge />` | Visibility & security | Neutral gray (Public) or Muted Red (`#f85149`, Private) | Lock SVG icon on Private, quiet gray for Public | `🔒 Private`, `Public` |
+
+### 3.3 Non-Badge Inline Metadata Components
+
+| Component | Semantic Role | Rendering Specification | Example |
+| :--- | :--- | :--- | :--- |
+| `<CostMetadata />` | Generation spend | Quiet inline coin icon + USD amount + converted INR | `💰 $0.0049 (₹0.47)` |
+| `<ReadingMetadata />` | Reading & time meta | Subdued inline text with dot separators | `1 min read · 5 hours ago · 💰 $0.0049` |
+| `<EvidenceMetadata />` | Verification counts | Quiet supporting text at card bottom | `3 sources · 3 claims` |
 
 ---
 
-## 3. Responsive Architecture: Desktop vs. Mobile
+## 4. Responsive Architecture: Desktop vs. Mobile
 
-The interface dynamically adapts its structure based on screen width (`@media (min-width: 900px)`):
+### 4.1 Desktop Cockpit (`>= 900px`)
+- **Fixed Left Sidebar (270px)**: Brand title, navigation tabs (`Feed`, `Search`, `Saved`, `Full Catalogue`), topic filter taxonomy chips, and operator identity footer card.
+- **Top Bar**: Contextual page title, descriptive subtitle, and direct DB & System Health modal trigger. (Hidden on detail view to dock the back bar flush at `top: 0`).
+- **Main Canvas**: Centered max-width 1240px container. In detail view, `.wrap.in-detail-view` eliminates top padding so the sticky back bar anchors cleanly with zero dead space.
+
+### 4.2 Mobile Reader (`< 900px`)
+- **Clean Reading Experience**: No desktop quick-nav or aggregate cards above the fold; users land directly on the featured dispatch.
+- **Top Brand Header**: Positioned sticky with safe-area notch padding (`calc(12px + var(--sat))`). **Automatically hidden** when viewing an investigation so the back bar becomes the sole top bar.
+- **Edge-to-Edge Sticky Back Bar**: Negative margins (`0 -16px 16px -16px`) and safe-area padding (`calc(10px + var(--sat, 0px)) 16px 10px`) dock the back bar seamlessly from physical edge to physical edge under the iPhone notch with a frosted glass backdrop filter.
+- **Persistent Bottom Navigation**: 5 touch-optimized tabs:
+  - **Home**: Main feed.
+  - **Search**: Dedicated search tab.
+  - **Saved**: Bookmarked investigations with small 15px count indicator.
+  - **Archive**: Historical catalogue with category filters.
+  - **Profile**: Operator profile dashboard and system health.
+
+---
+
+## 5. Navigation & Tab System
+
+| Tab ID | Hash Route | Component | Description |
+| :--- | :--- | :--- | :--- |
+| `home` | `#/` | [`FeedPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/FeedPage.tsx) | Clean blog-style stream with featured lead investigation. |
+| `search` | `#/search` | [`SearchPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/SearchPage.tsx) | Full-page search with frequency-capped topic chips, debounced search, and recent queries. |
+| `saved` | `#/saved` | [`SavedPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/SavedPage.tsx) | Curated bookmark collection stored in `localStorage`. |
+| `archive` | `#/archive` | [`ArchivePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ArchivePage.tsx) | Complete archive catalogued by category domain with spend metrics. |
+| `profile` | `#/profile` | [`ProfilePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ProfilePage.tsx) | Responsive operator dashboard: identity, model engine, spend analytics, and DB telemetry. |
+| `brief` | `#/brief/:id` | [`BriefDetailPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/BriefDetailPage.tsx) | Editorial detail document view with markdown body, claims matrix, and primary sources. |
+
+---
+
+## 6. Investigation Card Architecture ([`BriefCard.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/components/BriefCard.tsx))
 
 ```
-+-----------------------------------------------------------------------------------+
-|                                 DESKTOP VIEW (>= 900px)                           |
-+----------------------+------------------------------------------------------------+
-|  PERSISTENT SIDEBAR  |  MAIN CONTENT COLUMN                                       |
-|  - Brand & Logo      |  - Top Search Bar with [⌘ K] shortcut                      |
-|  - Home              |  - Suggested Topic Chips                                   |
-|  - Search            |  - 4 Quick-Nav Tiles (Papers, Briefs, Saved, History)      |
-|  - Saved Bookmarks   |  - Aggregate Stat Cards (Briefs Count, Spend $)           |
-|  - Research Archive  |  - Recent Investigations Section Header                    |
-|  - Daemon Status     |  - Blog-Style Feed of Investigations                       |
-|  - Profile Pill      |    (or Side-by-Side Narrative + Claims Sidebar on Detail) |
-+----------------------+------------------------------------------------------------+
-
-+-----------------------------------------------------------------------------------+
-|                                 MOBILE VIEW (< 900px)                             |
-+-----------------------------------------------------------------------------------+
-|  [Sticky Mobile Header]  🎺 Bugle (Ready)                       [Operator Pill]   |
-+-----------------------------------------------------------------------------------+
-|  FEED / CONTENT AREA (Immediate focus, no clutter):                               |
-|  ★ Latest Dispatch (Featured Card with read time, model pill, excerpt)            |
-|  - Standard Investigation Card 2                                                  |
-|  - Standard Investigation Card 3...                                               |
-+-----------------------------------------------------------------------------------+
-|  [Persistent Bottom Nav] [Home]      [Search]      [Saved (N)]     [Archive]      |
-+-----------------------------------------------------------------------------------+
+┌────────────────────────────────────────────────────────────────────────┐
+│ [Technology] [● Latest Dispatch]                     [ ★ ]  [ ↗ ]     │
+│ 1 min read  ·  5 hours ago  ·  💰 $0.0049 (₹0.47)                      │
+│                                                                        │
+│ Project HydraFusion: GitHub Copilot's Multi-Model Orchestration        │
+│ Up to 67% Lower Cost                                                   │
+│                                                                        │
+│ In-depth investigation into Copilot's dynamic router balancing         │
+│ low-latency tasks and complex reasoning pipelines...                   │
+│                                                                        │
+│ [deepseek-v4-flash]  [standard]  [ai-routing]                          │
+│ ────────────────────────────────────────────────────────────────────── │
+│ 3 sources · 3 claims                              Read investigation → │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.1 Mobile UX Optimizations
-
-1. **Clean Initial Landing**
-   - Search bars, quick-nav tiles, and stat cards are hidden on mobile load (`.desktop-only-overview`).
-   - The reader immediately lands on the latest dispatch.
-
-2. **Fixed Sticky Header with Blur Backdrop**
-   - Positioned sticky with safe-area padding: `top: 0; z-index: 900;`
-   - Background: `rgba(13, 17, 23, 0.92)` with `backdrop-filter: blur(12px)`.
-   - Respects `var(--sat)` to prevent iOS Dynamic Island and notification cutoffs.
-
-3. **Persistent Bottom Navigation Bar**
-   - Four touch-optimized actions: **Home**, **Search**, **Saved**, **Archive**.
-   - Active state gold glow (`var(--accent)`).
-   - Real-time badge counter for saved bookmarks.
-   - Bottom safe area padding: `padding-bottom: calc(6px + var(--sab));`.
-
-4. **iOS Safe Area & WebKit Viewport Rules**
-   - `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />`
-   - `<meta name="apple-mobile-web-app-status-bar-style" content="default" />` ensures iOS status bar icons remain readable and distinct.
-   - Form inputs enforce `font-size: 16px` on mobile viewports to stop iOS Safari from auto-zooming.
-   - Body avoids `overflow-x: hidden` to ensure iOS WebKit doesn't break sticky element positioning.
+1. **Row 1 (Top Badges & Actions)**: `<CategoryBadge />` and optional `<StatusBadge />` / `<AccessBadge />` on left; bookmark star & share buttons on right.
+2. **Row 2 (Inline Metadata)**: Subdued `<ReadingMetadata />` (`read duration · time ago · cost`).
+3. **Row 3 (Hero Headline)**: Large, high-contrast, dominant title (`1.32rem` featured / `1.10rem` standard).
+4. **Row 4 (Summary)**: 2–3 line clamped narrative excerpt with comfortable `1.6` line-height.
+5. **Row 5 (Technical Tags)**: Secondary, quiet `<TechnicalTag />` elements for model engine, research depth, and subcategories.
+6. **Row 6 (Footer)**: Quiet `<EvidenceMetadata />` on the left; gold `Read investigation →` CTA on the right.
 
 ---
 
-## 4. Navigation & Tab System
+## 7. Frontend Codebase Layout
 
-Bugle is organized around four primary tabs and a full-page detail view:
-
-### 4.1 Tab Structure
-
-| Tab ID | Hash Route | Description |
-| :--- | :--- | :--- |
-| `home` | `#/` | Clean blog-style research feed; latest dispatch highlighted as featured card. |
-| `search` | `#/search` | Dedicated search tab with compact input, topic chips, recent searches, and live feed. |
-| `saved` | `#/saved` | Curated bookmark list stored in browser `localStorage`. |
-| `archive` | `#/archive` | Complete historical catalogue with category filter pills (AI, Markets, Climate, etc.). |
-| `brief` | `#/brief/:id` | Full investigation report with narrative markdown and evidence audit matrix. |
-
-### 4.2 Dedicated Search Tab (`#/search`)
-
-The search experience uses a **dedicated full-page tab** rather than a modal popup to maintain clean scrolling physics, bookmarkability, and zero visual claustrophobia:
-
-1. **Compact Search Bar (`.compact-search-bar`)**:
-   - Streamlined 42px height.
-   - Magnifying glass icon, clear button (`✕`), and desktop keyboard hint (`⌘ K`).
-   - Automatically focuses input on entry.
-2. **Top Topic Chips (`.search-topics-bar`)**:
-   - Ranked strictly by occurrence frequency across investigations (capped at 5–6 topics max to prevent clutter).
-   - Tapping any chip immediately filters the live archive and updates the URL.
-3. **Recent Search Strip (`.search-recent-strip`)**:
-   - Compact inline strip displaying recent search queries.
-   - One-tap "Clear" affordance synced to `localStorage`.
-4. **Live Results Count & Reset Filter Bar (`.search-results-bar`)**:
-   - Displays search term, match count badge, and a responsive bounded pill button (`.reset-search-btn`).
-   - Flex-wrapping and word-break rules prevent overflow outside the UI viewport on mobile.
+```
+web/src/
+├── components/
+│   ├── Badge.tsx           # Reusable Badge design system & inline metadata components
+│   ├── BriefCard.tsx       # Reading-first investigation card
+│   ├── Icons.tsx           # Optical SVG icons (Home, Search, Star, Archive, Coins, Lock, etc.)
+│   ├── RevisionsDrawer.tsx # Slide-out audit drawer for historical brief revisions
+│   └── SystemHealthModal.tsx # Real-time SQLite PRAGMA checks & schema diagnostics
+├── pages/
+│   ├── FeedPage.tsx        # Intelligence feed stream
+│   ├── SearchPage.tsx      # Dedicated full-page search tab
+│   ├── SavedPage.tsx       # Saved bookmarks view
+│   ├── ArchivePage.tsx     # Full topic catalogue with spend stats
+│   ├── ProfilePage.tsx     # Operator profile dashboard & system metrics
+│   └── BriefDetailPage.tsx # Editorial detail reading view
+├── hooks/
+│   ├── useConfirm.ts       # Accessible confirmation dialog hook
+│   └── useModalChrome.ts   # Modal keyboard & backdrop dismissal hook
+├── api.ts                  # Type-safe Fetch API client for Bugle backend
+├── format.ts               # Currency, duration, relative time & model name formatters
+├── App.tsx                 # Root application shell, state management & routing
+└── style.css               # Complete stylesheet enforcing the design system
+```
 
 ---
 
-## 5. Component Patterns & Guidelines
-
-### 5.1 Blog Card (`.blog-card`)
-
-Used to render investigation briefs across Home, Search, Saved, and Archive tabs:
-
-- **Meta Header Row**:
-  - Category badge (`.blog-tag-badge`): Upper-case category pill.
-  - Featured tag (`.blog-featured-tag`): `★ Latest Dispatch` on the newest post.
-  - Estimated read time (`.blog-read-time`): E.g., `3 min read`.
-  - Relative time (`.blog-rel-time`): E.g., `2h ago`, `Yesterday`.
-  - Generation cost badge (`.blog-cost-pill`): E.g., `💰 $0.014`.
-  - Action buttons: Quick-save star bookmark toggle & native Web Share button.
-- **Headline**:
-  - Prominent high-contrast title. Hover produces a subtle gold accent color shift.
-- **Summary Excerpt**:
-  - 2 to 3 line clamped narrative excerpt giving instant context.
-- **Provenance Footer**:
-  - Model engine pill (e.g. `⚡ gpt-4o-mini`, `⚡ sonnet-3.7`).
-  - Research depth badge (`FAST`, `STANDARD`, `DEEP`).
-  - Evidence count: `X sources · Y claims`.
-  - Action CTA: `Read investigation →`.
-
-### 5.2 Investigation Detail View (`.brief-detail-layout`)
-
-When a user selects a brief (`#/brief/:id`):
-
-1. **Sticky Header (`.brief-detail-nav-bar`)**:
-   - "← Back to feed" button (restores previous tab and scroll context).
-   - Bookmark and Share action icons.
-   - Reading progress indicator.
-2. **Executive Summary Card (`.executive-summary-card`)**:
-   - Gold border-left callout accent.
-   - Quick synthesis designed for 30-second absorption.
-3. **Editorial Narrative Prose (`.brief-prose`)**:
-   - Rendered using serif typography (`Merriweather`, 1.02rem, line-height 1.68).
-   - Markdown headers (`H1`, `H2`, `H3`) with clean letter spacing and subtle divider borders.
-   - Blockquotes, formatted code snippets, bullet lists, and bold callouts.
-4. **Claims & Verification Audit Rail (`.claims-section`)**:
-   - Each audited claim shows:
-     - Status pill (`verified`, `supported`, `disputed`, `unverified`).
-     - Statement text.
-     - Evidence summary extracted from source cross-referencing.
-     - Linked primary source references.
-5. **Primary Sources Archive (`.sources-section`)**:
-   - Direct link out to original papers, articles, and documentation (`↗`).
-   - Publisher name, author, publication date, and reliability score.
-
-### 5.3 Operator Profile Menu (`.profile-dropdown-menu`)
-
-Accessible via the operator pill in the top header:
-- Authenticated user email (Cloudflare Access / Google).
-- System daemon health and daemon runtime metrics.
-- Research pipeline capabilities (multi-source claims verification audit, Cloudflare Access Tunnel).
-- Quick navigation shortcuts to Saved Bookmarks, Archive, and Search.
-
----
-
-## 6. Code Style & Technical Conventions
-
-### 6.1 State Management Rules
-
-- **Client Navigation**: Rely strictly on `switchTab(tab)` and hash synchronization. Avoid artificial routing dependencies.
-- **Local Storage Keys**:
-  - `bugle_saved_briefs`: Array of string brief IDs (`string[]`).
-  - `bugle_recent_searches`: Array of unique recent queries (`string[]`), max 10 entries.
-- **Keyboard Shortcuts**:
-  - `⌘ K` / `Ctrl K`: Navigate to Search Tab and focus search input.
-  - `Escape`: Close open dropdown menus and modals.
-
-### 6.2 CSS Best Practices
-
-1. **No Hardcoded Colors**: Always utilize `:root` CSS custom properties (`var(--bg)`, `var(--border)`, `var(--ink)`, `var(--accent)`).
-2. **Touch Targets**: All interactive icons, chips, and buttons must have a minimum target of `40px` (or `44px` on mobile nav).
-3. **Smooth Micro-interactions**: Hover effects use standard ease transitions: `transition: all 0.15s ease`.
-4. **No Content Shift**: Maintain fixed heights or min-heights on icons, buttons, and badges to prevent layout thrashing.
-5. **Safe Scroll physics**: Never apply `overflow: hidden` to root `html, body` or parent containers of sticky elements.
-
----
-
-## 7. Build, Test & Deployment Pipeline
-
-Bugle's frontend is bundled with Vite and served statically by the FastAPI backend:
+## 8. Build & Verification Commands
 
 ```bash
 # Type check and build frontend bundle into web/dist
@@ -268,13 +212,8 @@ npm run build
 
 # Run backend unit & integration tests
 cd ..
-.venv/bin/pytest
+./.venv/bin/pytest -q
 
-# Restart daemon via launchd (macOS)
-launchctl kickstart -k gui/$(id -u)/com.personal.bugle
+# Restart live macOS launchd service
+launchctl kickstart -k "gui/$(id -u)/com.personal.bugle"
 ```
-
-When building for production:
-- TypeScript compilation (`tsc --noEmit`) validates type safety across all React components.
-- Vite bundles and minifies CSS and JavaScript into hash-versioned assets in `web/dist/assets/`.
-- FastAPI mounts `web/dist` at `/` to serve the single-page application with fallback index routing.

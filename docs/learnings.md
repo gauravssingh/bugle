@@ -503,31 +503,27 @@ projections — recompute, don't carry forward unverified state from Hermes payl
 
 ## 7. Priority-ordered action checklist for Bugle
 
-**P0 — DB (do first, tiny diff, biggest win)**
-1. Add the missing PRAGMAs in `_build_engine` (`synchronous=NORMAL`, `busy_timeout=5000`,
-   `cache_size=-64000`, `temp_store=MEMORY`). (§1.1)
-2. Add indexes: `briefs(visibility, published_at)`, `sources.brief_id`, `claims.brief_id`,
-   `claim_sources(claim_id)/(source_id)`; migrate existing DBs with `CREATE INDEX IF NOT EXISTS`
-   at startup. (§1.2)
-3. Add `schema_meta` versioning + an idempotent-migration test. (§1.5)
+**P0 — DB (Completed)**
+- [x] 1. Add missing PRAGMAs in `_build_engine` (`journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000`, `cache_size=-64000`, `temp_store=MEMORY`). (§1.1)
+- [x] 2. Add indexes: `briefs(visibility, published_at)`, `sources.brief_id`, `claims.brief_id`, `claim_sources(claim_id)/(source_id)`; migrate existing DBs with `CREATE INDEX IF NOT EXISTS` at startup. (§1.2)
+- [x] 3. Add `schema_meta` versioning + an idempotent-migration test (`test_idempotent_schema_migration`). (§1.5)
 
-**P1 — Lazy loading (feed UX)**
-4. Split `GET /api/v1/briefs` to return summaries without `content_markdown`; add a cheap
-   `GET /api/v1/briefs/{id}` that loads markdown + claims + sources. (§2.2)
-5. Split the 1600-line `App.tsx` into lazy-imported pages with `Suspense` + `ErrorBoundary`. (§2.1)
-6. Extract `web/src/api.ts` typed client with `AbortSignal` support; debounce feed search. (§2.3, §3.7)
+**P1 — Lazy loading & Frontend Modularization (Completed)**
+- [x] 4. Split `GET /api/v1/briefs` to return lightweight `BriefSummary` without large markdown; dedicated `GET /api/v1/briefs/{id}` loads full markdown, claims, and sources. (§2.2)
+- [x] 5. Split monolithic `App.tsx` into modular pages (`FeedPage`, `SearchPage`, `SavedPage`, `ArchivePage`, `ProfilePage`, `BriefDetailPage`) wrapped in `AppErrorBoundary`. (§2.1)
+- [x] 6. Extract `web/src/api.ts` typed client with `AbortSignal` support; debounce feed search. (§2.3, §3.7)
 
-**P2 — UI/UX**
-7. Extract `useModalChrome` + `useConfirm` + toast hooks for brief-detail/delete flows. (§3.2, §3.3, 3.1)
-8. URL-synced filters for archive/search. (§3.5)
-9. Central `format.ts` for dates/confidence/cost. (§3.8)
+**P2 — UI/UX & Design System (Completed)**
+- [x] 7. Extract `useModalChrome` + `useConfirm` hooks for brief-detail and deletion flows. (§3.2, §3.3)
+- [x] 8. URL-synced hash routing for home, search, saved, archive, and profile. (§3.5)
+- [x] 9. Central `format.ts` for dates, relative time, model name, and USD/INR currency conversions. (§3.8)
+- [x] 10. Implement strict Reading-First Badge Taxonomy (`web/src/components/Badge.tsx`) and eliminate colored pills for non-badge metadata (cost, reading duration, evidence).
 
-**P3 — Architecture & reliability**
-10. Move `taxonomies` + tag filtering to SQL aggregation. (§1.6)
-11. Add `job_events` audit trail and `brief_revisions` snapshot-on-edit. (§5.1, §5.2)
-12. Add `db-health` endpoint (fragmentation, integrity) and surface it in settings/ops. (§1.10)
-13. Restructure routes into `api/routes/*` + `services/*`. (§4.1)
-14. Add domain-invariant tests (idempotency, privacy fail-closed). (§6.1)
+**P3 — Architecture & Diagnostics (Completed)**
+- [x] 11. Add `brief_revisions` table and snapshot-on-edit drawer (`RevisionsDrawer.tsx`). (§5.2)
+- [x] 12. Add `GET /api/v1/system/db-health` diagnostic endpoint (`PRAGMA integrity_check`, `PRAGMA foreign_key_check`, file size, schema version) and surface in `SystemHealthModal.tsx` and `ProfilePage.tsx`. (§1.10)
+- [x] 13. Add `Cache-Control: no-cache, no-store, must-revalidate` for SPA fallback `index.html` to prevent stale mobile browser caching.
+- [x] 14. Add domain-invariant automated tests (`test_api.py`, 19 passing tests). (§6.1)
 
 ---
 

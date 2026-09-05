@@ -333,59 +333,55 @@ fi
 ## 7. Phased Implementation Roadmap
 
 ### Phase 0 — Repository & Data Audit *(Completed)*
-- Verified existing SQLite database `data/bugle.db`: single test post exists.
+- Verified existing SQLite database `data/bugle.db`.
 - Confirmed `web/package-lock.json` is committed.
 - Validated origin binding and macOS launchd setup.
 
-### Phase 1 — Domain Model & Database Schema
-- Implement SQLAlchemy models in [`db.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/db.py):
-  - `ResearchJob`
-  - `Brief`
-  - `Source`
-  - `Claim`
-  - `ClaimSource` (association table)
-- Create migration script (`src/bugle/db_migrate.py`):
-  - Backs up existing `data/bugle.db`.
-  - Upgrades schema cleanly.
-  - Ensures SQLite WAL mode and foreign key enforcement (`PRAGMA foreign_keys = ON`).
+### Phase 1 — Domain Model & Database Schema *(Completed)*
+- Implemented SQLAlchemy models in [`db.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/db.py): `ResearchJob`, `Brief`, `Source`, `Claim`, `ClaimSource`, `BriefRevision`.
+- Created automated additive migration runner (`src/bugle/db_migrate.py` and `db.py::Database.session`).
+- Enabled SQLite WAL mode, foreign keys (`PRAGMA foreign_keys = ON`), `busy_timeout=5000`, `cache_size=-64000`, `synchronous=NORMAL`, `temp_store=MEMORY`.
+- Added multi-column and FK indexes: `ix_briefs_visibility_published_at`, `ix_briefs_published_at`, `ix_sources_brief_id`, `ix_claims_brief_id`.
 
-### Phase 2 — Security & Invariant Enforcement
-- Implement `AuthContext` dependency in [`app.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/app.py):
+### Phase 2 — Security & Invariant Enforcement *(Completed)*
+- Implemented `AuthContext` dependency in [`app.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/app.py):
   - `BUGLE_SERVICE_TOKEN` for machine ingestion.
-  - `Cf-Access-Authenticated-User-Email` vs `BUGLE_ADMIN_EMAIL` for operator.
+  - `Cf-Access-Authenticated-User-Email` vs `BUGLE_ADMIN_EMAIL` for operator identity.
   - Hardened anonymous query filtering (`visibility == 'public'`).
-- Build comprehensive pytest suite:
-  - Anonymous requests cannot read private briefs via any query param (`?visibility=private`, `?visibility=all`).
-  - Direct ID lookup of private briefs by anonymous callers returns 404.
-  - Service token grants write access; invalid token returns 401.
+- Built comprehensive pytest suite in [`tests/test_api.py`](file:///Users/gauravsingh/projects/bugle/tests/test_api.py) (19 passing tests).
 
-### Phase 3 — Research API Endpoints
-- Implement Pydantic schemas in [`schemas.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/schemas.py).
-- Build `/api/v1/jobs` endpoints (create, status patch, get).
-- Build `/api/v1/briefs` endpoints with:
+### Phase 3 — Research API Endpoints *(Completed)*
+- Implemented Pydantic schemas in [`schemas.py`](file:///Users/gauravsingh/projects/bugle/src/bugle/schemas.py).
+- Built `/api/v1/jobs` endpoints (create, status patch, get, list).
+- Built `/api/v1/briefs` endpoints with:
   - Idempotent insertion (`brief.job_id` uniqueness handling).
   - Many-to-many Claim ↔ Source linking.
-  - Keyword and tag filtering.
+  - Keyword search, category taxonomies, and tag filtering.
+  - Lightweight summary feed endpoint and full detail endpoint with revisions.
 
-### Phase 4 — Hermes Integration Test
-- Automated integration test simulating Hermes:
-  1. Hermes posts research job.
-  2. Updates job status to `running`.
-  3. Posts completed research brief with structured sources, claims, and claim-source mappings.
-  4. Retries posting same brief to verify idempotency (returns 200 without duplication).
-  5. Operator queries brief and verifies all evidence relationships.
+### Phase 4 — Hermes Integration Test *(Completed)*
+- Automated integration test in [`tests/test_hermes_integration.py`](file:///Users/gauravsingh/projects/bugle/tests/test_hermes_integration.py) simulating full Hermes lifecycle: job creation $\rightarrow$ running $\rightarrow$ brief publication with evidence $\rightarrow$ retry idempotency verification $\rightarrow$ operator query validation.
 
-### Phase 5 — Focused Reading Frontend
-- Install `react-markdown` and `remark-gfm` in `web/package.json`.
-- Build the reading-focused UI in `web/src/`:
-  - Recent Investigations feed.
-  - Detail document view with Markdown formatting, claims verification cards, and primary source drawer.
-- Run `npm run build` (`tsc --noEmit && vite build`) to verify zero type errors.
+### Phase 5 — Focused Reading Frontend & Modularization *(Completed)*
+- Built modern React 19 + TypeScript frontend with modular page architecture:
+  - `FeedPage.tsx`: Main stream with featured hero brief.
+  - `SearchPage.tsx`: Dedicated full-page search tab with frequency-capped topic chips and query history.
+  - `SavedPage.tsx`: LocalStorage-persisted bookmarks.
+  - `ArchivePage.tsx`: Historical catalogue with topic filters and spend analytics.
+  - `BriefDetailPage.tsx`: Markdown rendering (`react-markdown` + `remark-gfm`), executive synthesis callout, claims verification cards, and primary source drawer.
 
-### Phase 6 — Deployment Hardening & Daemon Sync
-- Update `scripts/trigger_deploy.sh` with automated backup, `npm ci`, migration, restart, and healthcheck.
-- Verify macOS `launchd` service restart and log streams.
+### Phase 6 — Deployment Hardening & Daemon Sync *(Completed)*
+- Updated `scripts/trigger_deploy.sh` with automated backup, `npm ci`, migration, restart, and healthcheck.
+- Verified macOS `launchd` service restart (`com.personal.bugle`) and log streams.
 
-### Phase 7 — Research Quality Benchmark & Documentation
-- Update `README.md` to reflect the Personal Research Intelligence specification.
-- Ingest a real benchmark research topic (e.g. DeepSeek R1 or similar) to validate end-to-end reading quality.
+### Phase 7 — Diagnostics & Telemetry *(Completed)*
+- Built `GET /api/v1/system/db-health` diagnostic endpoint reporting live `PRAGMA integrity_check`, `PRAGMA foreign_key_check`, file size on disk, and schema version.
+- Built `SystemHealthModal.tsx` interactive diagnostic dialog.
+- Added `Cache-Control: no-cache, no-store, must-revalidate` for SPA fallback `index.html` to prevent stale mobile browser caching.
+
+### Phase 8 — Reading-First Design System & Profile Dashboard *(Completed)*
+- **Strict Badge Taxonomy (`Badge.tsx`)**: Replaced arbitrary pill styles with a unified 22px component supporting four semantic variants: `CategoryBadge`, `StatusBadge`, `TechnicalTag`, and `AccessBadge`.
+- **Kill the Pills for Non-Badges**: Replaced pill containers on generation cost, reading duration, and evidence counts with clean, subdued inline metadata (`ReadingMetadata`, `CostMetadata`, `EvidenceMetadata`).
+- **Reading-First Card Hierarchy**: Re-architected investigation cards and detail views to ensure the title and narrative are the unmistakable hero elements.
+- **Dedicated Operator Profile Page (`ProfilePage.tsx`)**: Built a responsive, multi-card dashboard for operator identity, model configuration, research spend analytics (with USD/INR currency conversions), and database health.
+- **Mobile Edge-to-Edge Sticky Back Bar**: Anchored the back bar directly at `top: 0` on mobile and desktop with safe-area notch support (`var(--sat)`), negative margins, and zero top padding in detail view.
