@@ -1,0 +1,36 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Testing & linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local databases & storage
+*.db
+*.db-wal
+*.db-shm
+data/
+*.log
+
+# Environment & secrets
+.env
+.env*.local
+
+# Frontend / Node
+node_modules/
+web/node_modules/
+web/dist/
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
