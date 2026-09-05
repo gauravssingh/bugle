@@ -489,3 +489,150 @@ def test_system_status_and_db_health(client):
     assert health_data["integrity_ok"] is True
     assert health_data["foreign_keys_ok"] is True
     assert health_data["page_count"] >= 1
+
+
+def test_db_vacuum_endpoint(client):
+    admin_headers = {"Cf-Access-Authenticated-User-Email": ADMIN_EMAIL}
+
+    # Anonymous denied
+    r_anon = client.post("/api/v1/system/db-vacuum")
+    assert r_anon.status_code == 401
+
+    # Admin allowed
+    r_admin = client.post("/api/v1/system/db-vacuum", headers=admin_headers)
+    assert r_admin.status_code == 200
+    data = r_admin.json()
+    assert data["status"] == "ok"
+    assert "page_count" in data
+    assert data["page_count"] >= 1
+
+
+def test_job_events_lifecycle_tracking(client):
+    admin_headers = {"Cf-Access-Authenticated-User-Email": ADMIN_EMAIL}
+
+    # 1. Create job
+    create_res = client.post(
+        "/api/v1/jobs",
+        json={"topic": "Quantum Annealing Benchmarks"},
+        headers=admin_headers,
+    )
+    assert create_res.status_code == 201
+    job_id = create_res.json()["id"]
+
+    # 2. Update status: pending -> running
+    patch1 = client.patch(
+        f"/api/v1/jobs/{job_id}",
+        json={"status": "running"},
+        headers=admin_headers,
+    )
+    assert patch1.status_code == 200
+
+    # 3. Update status: running -> completed
+    patch2 = client.patch(
+        f"/api/v1/jobs/{job_id}",
+        json={"status": "completed"},
+        headers=admin_headers,
+    )
+    assert patch2.status_code == 200
+
+    # 4. Fetch job events endpoint
+    events_res = client.get(f"/api/v1/jobs/{job_id}/events", headers=admin_headers)
+    assert events_res.status_code == 200
+    events = events_res.json()
+    assert len(events) == 3
+    assert events[0]["to_status"] == "pending"
+    assert events[1]["from_status"] == "pending"
+    assert events[1]["to_status"] == "running"
+    assert events[2]["from_status"] == "running"
+    assert events[2]["to_status"] == "completed"
+
+    # Also verify events are nested on GET /jobs/{id}
+    job_res = client.get(f"/api/v1/jobs/{job_id}", headers=admin_headers)
+    assert len(job_res.json()["events"]) == 3
+
+
+def test_brief_revisions_snapshot_on_update(client):
+    service_headers = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
+    admin_headers = {"Cf-Access-Authenticated-User-Email": ADMIN_EMAIL}
+
+    # 1. Publish brief
+    pub_res = client.post(
+        "/api/v1/briefs",
+        json={
+            "title": "Autonomous Coding Agents Survey",
+            "summary": "Original summary v1",
+            "content_markdown": "# Original markdown v1",
+            "category": "AI",
+            "visibility": "public",
+            "claims": [
+                {
+                    "statement": "Coding agents improve task throughput by 30%.",
+                    "status": "verified",
+                    "evidence_summary": "Empirical benchmark study",
+                }
+            ],
+        },
+        headers=service_headers,
+    )
+    assert pub_res.status_code == 201
+    brief_id = pub_res.json()["id"]
+
+    # 2. Update brief as admin
+    update_res = client.patch(
+        f"/api/v1/briefs/{brief_id}",
+        json={
+            "title": "Autonomous Coding Agents Survey (2026 Edition)",
+            "summary": "Revised summary v2",
+            "content_markdown": "# Revised markdown v2",
+        },
+        headers=admin_headers,
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["title"] == "Autonomous Coding Agents Survey (2026 Edition)"
+
+    # 3. Retrieve revisions
+    rev_res = client.get(f"/api/v1/briefs/{brief_id}/revisions", headers=admin_headers)
+    assert rev_res.status_code == 200
+    revisions = rev_res.json()
+    assert len(revisions) == 1
+    assert revisions[0]["title"] == "Autonomous Coding Agents Survey"
+    assert revisions[0]["summary"] == "Original summary v1"
+    assert revisions[0]["content_markdown"] == "# Original markdown v1"
+    assert len(revisions[0]["claims_snapshot"]) == 1
+    assert (
+        revisions[0]["claims_snapshot"][0]["statement"]
+        == "Coding agents improve task throughput by 30%."
+    )
+
+
+def test_idempotent_schema_migration(settings):
+    from bugle.db import Database
+
+    # 1. First initialization
+    db1 = Database(settings)
+    with db1.session() as session:
+        conn = session.connection()
+        version1 = conn.exec_driver_sql(
+            "SELECT value FROM schema_meta WHERE key = 'schema_version'"
+        ).scalar()
+        assert version1 == "1"
+
+    # 2. Re-run migration / boot second instance on same database
+    db2 = Database(settings)
+    with db2.session() as session:
+        conn = session.connection()
+        version2 = conn.exec_driver_sql(
+            "SELECT value FROM schema_meta WHERE key = 'schema_version'"
+        ).scalar()
+        assert version2 == "1"
+        # Confirm indexes exist without error
+        index_names = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "SELECT type, name FROM sqlite_master WHERE type = 'index'"
+            ).fetchall()
+        }
+        assert "ix_briefs_visibility_published_at" in index_names
+        assert "ix_briefs_published_at" in index_names
+        assert "ix_sources_brief_id" in index_names
+        assert "ix_claims_brief_id" in index_names

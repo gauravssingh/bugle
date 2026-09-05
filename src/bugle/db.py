@@ -15,8 +15,8 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Integer,
     Index,
+    Integer,
     String,
     Table,
     Text,
@@ -79,19 +79,13 @@ class ResearchJob(Base):
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     token_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_utc
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
     )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    brief: Mapped[Brief | None] = relationship(
-        "Brief", back_populates="job", uselist=False
-    )
+    brief: Mapped[Brief | None] = relationship("Brief", back_populates="job", uselist=False)
     events: Mapped[list[JobEvent]] = relationship(
         "JobEvent", back_populates="job", cascade="all, delete-orphan", order_by="JobEvent.id"
     )
@@ -133,16 +127,12 @@ class Brief(Base):
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     summary: Mapped[str] = mapped_column(Text, default="")
-    content_markdown: Mapped[str] = mapped_column(Text, default="")
+    content_markdown: Mapped[str] = mapped_column(Text, default="", deferred=True)
     category: Mapped[str] = mapped_column(String(100), default="Technology")
     subcategory: Mapped[str] = mapped_column(String(100), default="")
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
-    confidence: Mapped[str] = mapped_column(
-        String(20), default="medium"
-    )  # high | medium | low
-    visibility: Mapped[str] = mapped_column(
-        String(20), default="private"
-    )  # private | public
+    confidence: Mapped[str] = mapped_column(String(20), default="medium")  # high | medium | low
+    visibility: Mapped[str] = mapped_column(String(20), default="private")  # private | public
     research_type: Mapped[str] = mapped_column(String(50), default="general")
     research_depth: Mapped[str] = mapped_column(String(50), default="standard")
     source_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -160,19 +150,13 @@ class Brief(Base):
     research_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    published_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_utc
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_utc
-    )
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
     )
 
-    job: Mapped[ResearchJob | None] = relationship(
-        "ResearchJob", back_populates="brief"
-    )
+    job: Mapped[ResearchJob | None] = relationship("ResearchJob", back_populates="brief")
     sources: Mapped[list[Source]] = relationship(
         "Source",
         back_populates="brief",
@@ -186,7 +170,10 @@ class Brief(Base):
         order_by="Claim.id",
     )
     revisions: Mapped[list[BriefRevision]] = relationship(
-        "BriefRevision", back_populates="brief", cascade="all, delete-orphan", order_by="BriefRevision.id"
+        "BriefRevision",
+        back_populates="brief",
+        cascade="all, delete-orphan",
+        order_by="BriefRevision.id",
     )
 
     @property
@@ -242,13 +229,9 @@ class Source(Base):
     reliability: Mapped[str] = mapped_column(
         String(50), default="secondary"
     )  # primary | secondary | contested
-    published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    retrieved_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=now_utc
-    )
-    relevance: Mapped[str | None] = mapped_column(Text, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    relevance: Mapped[str | None] = mapped_column(Text, nullable=True, deferred=True)
 
     brief: Mapped[Brief] = relationship("Brief", back_populates="sources")
     claims: Mapped[list[Claim]] = relationship(
@@ -316,8 +299,7 @@ class Database:
         with self.engine.connect() as conn:
             # Check briefs table columns
             brief_cols = {
-                row[1]
-                for row in conn.exec_driver_sql("PRAGMA table_info(briefs)").fetchall()
+                row[1] for row in conn.exec_driver_sql("PRAGMA table_info(briefs)").fetchall()
             }
             if brief_cols:
                 if "cost_usd" not in brief_cols:
@@ -333,7 +315,9 @@ class Database:
                 if "token_usage" not in brief_cols:
                     conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN token_usage JSON")
                 if "execution_meta" not in brief_cols:
-                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN execution_meta JSON DEFAULT '{}'")
+                    conn.exec_driver_sql(
+                        "ALTER TABLE briefs ADD COLUMN execution_meta JSON DEFAULT '{}'"
+                    )
 
             # Check research_jobs table columns
             job_cols = {
@@ -346,16 +330,19 @@ class Database:
                 if "cost_inr" not in job_cols:
                     conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN cost_inr REAL")
                 if "cost_exchange_rate" not in job_cols:
-                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN cost_exchange_rate REAL")
+                    conn.exec_driver_sql(
+                        "ALTER TABLE research_jobs ADD COLUMN cost_exchange_rate REAL"
+                    )
                 if "duration_seconds" not in job_cols:
-                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN duration_seconds REAL")
+                    conn.exec_driver_sql(
+                        "ALTER TABLE research_jobs ADD COLUMN duration_seconds REAL"
+                    )
                 if "model" not in job_cols:
                     conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN model VARCHAR(100)")
                 if "token_usage" not in job_cols:
                     conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN token_usage JSON")
             conn.exec_driver_sql(
-                "CREATE TABLE IF NOT EXISTS schema_meta "
-                "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+                "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
             conn.exec_driver_sql(
                 "INSERT INTO schema_meta (key, value) VALUES ('schema_version', '1') "
@@ -378,8 +365,7 @@ class Database:
                 "ON briefs (visibility, published_at)"
             )
             conn.exec_driver_sql(
-                "CREATE INDEX IF NOT EXISTS ix_briefs_published_at "
-                "ON briefs (published_at)"
+                "CREATE INDEX IF NOT EXISTS ix_briefs_published_at ON briefs (published_at)"
             )
             conn.exec_driver_sql(
                 "CREATE INDEX IF NOT EXISTS ix_sources_brief_id ON sources (brief_id)"
@@ -388,16 +374,13 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS ix_claims_brief_id ON claims (brief_id)"
             )
             conn.exec_driver_sql(
-                "CREATE INDEX IF NOT EXISTS ix_claim_sources_claim_id "
-                "ON claim_sources (claim_id)"
+                "CREATE INDEX IF NOT EXISTS ix_claim_sources_claim_id ON claim_sources (claim_id)"
             )
             conn.exec_driver_sql(
-                "CREATE INDEX IF NOT EXISTS ix_claim_sources_source_id "
-                "ON claim_sources (source_id)"
+                "CREATE INDEX IF NOT EXISTS ix_claim_sources_source_id ON claim_sources (source_id)"
             )
             conn.exec_driver_sql(
-                "CREATE INDEX IF NOT EXISTS ix_research_jobs_status "
-                "ON research_jobs (status)"
+                "CREATE INDEX IF NOT EXISTS ix_research_jobs_status ON research_jobs (status)"
             )
             conn.exec_driver_sql("PRAGMA optimize")
             conn.commit()

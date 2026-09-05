@@ -21,19 +21,32 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import exists, func, or_, select, true
 from sqlalchemy.orm import Session as SASession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 
 from . import __version__
 from .config import Settings, get_settings
-from .db import Brief, BriefRevision, Claim, Database, JobEvent, ResearchJob, Source, generate_id, now_utc
+from .db import (
+    Brief,
+    BriefRevision,
+    Claim,
+    Database,
+    JobEvent,
+    ResearchJob,
+    Source,
+    generate_id,
+    now_utc,
+)
 from .schemas import (
     AuthMeResponse,
     BriefCreate,
     BriefDetailRead,
     BriefListRead,
+    BriefRevisionRead,
     BriefUpdate,
     ClaimRead,
+    DbVacuumResponse,
     JobCreate,
+    JobEventRead,
     JobListRead,
     JobRead,
     JobUpdate,
@@ -79,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.db = db
     app.state.settings = settings
 
-    def get_db() -> Generator[SASession, None, None]:
+    def get_db() -> Generator[SASession]:
         """Provide one request-scoped session and always return it to the pool."""
         db_session = db.session()
         try:
@@ -183,7 +196,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "version": __version__,
             "database": {"briefs": briefs, "jobs": jobs},
             "latest_job": (
-                {"id": latest_job.id, "status": latest_job.status, "created_at": latest_job.created_at}
+                {
+                    "id": latest_job.id,
+                    "status": latest_job.status,
+                    "created_at": latest_job.created_at,
+                }
                 if latest_job
                 else None
             ),
@@ -208,10 +225,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "freelist_pages": freelist_pages,
             "fragmentation_pct": fragmentation,
             "db_size_bytes": db_size,
-            "wal_size_bytes": settings.db_path.with_name(settings.db_path.name + "-wal").stat().st_size
+            "wal_size_bytes": settings.db_path.with_name(settings.db_path.name + "-wal")
+            .stat()
+            .st_size
             if settings.db_path.with_name(settings.db_path.name + "-wal").exists()
             else 0,
         }
+
+    @app.post("/api/v1/system/db-vacuum", response_model=DbVacuumResponse)
+    def db_vacuum(
+        db_session: SASession = Depends(get_db),
+        _: AuthContext = Depends(require_admin_or_service),
+    ):
+        conn = db_session.connection()
+        conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        conn.exec_driver_sql("VACUUM")
+        conn.exec_driver_sql("PRAGMA optimize")
+        page_count = conn.exec_driver_sql("PRAGMA page_count").scalar() or 0
+        freelist_pages = conn.exec_driver_sql("PRAGMA freelist_count").scalar() or 0
+        db_size = settings.db_path.stat().st_size if settings.db_path.exists() else 0
+        wal_path = settings.db_path.with_name(settings.db_path.name + "-wal")
+        wal_size = wal_path.stat().st_size if wal_path.exists() else 0
+        fragmentation = round((freelist_pages / page_count) * 100, 2) if page_count else 0.0
+        return DbVacuumResponse(
+            status="ok",
+            message="Database vacuumed, WAL truncated, and query planner optimized.",
+            page_count=page_count,
+            freelist_pages=freelist_pages,
+            fragmentation_pct=fragmentation,
+            db_size_bytes=db_size,
+            wal_size_bytes=wal_size,
+        )
 
     @app.get("/api/v1/auth/me", response_model=AuthMeResponse)
     def auth_me(auth: AuthContext = Depends(get_auth_context)):
@@ -262,13 +306,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db_session: SASession = Depends(get_db),
         _: AuthContext = Depends(require_admin_or_service),
     ):
-        job = db_session.get(ResearchJob, job_id)
+        job = db_session.scalar(
+            select(ResearchJob)
+            .options(selectinload(ResearchJob.events))
+            .where(ResearchJob.id == job_id)
+        )
         if not job:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Research job not found",
             )
         return job
+
+    @app.get("/api/v1/jobs/{job_id}/events", response_model=list[JobEventRead])
+    def get_job_events(
+        job_id: str,
+        db_session: SASession = Depends(get_db),
+        _: AuthContext = Depends(require_admin_or_service),
+    ):
+        job = db_session.get(ResearchJob, job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Research job not found",
+            )
+        return db_session.scalars(
+            select(JobEvent)
+            .where(JobEvent.job_id == job_id)
+            .order_by(JobEvent.created_at.asc(), JobEvent.id.asc())
+        ).all()
 
     @app.patch("/api/v1/jobs/{job_id}", response_model=JobRead)
     def update_job(
@@ -314,8 +380,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         db_session.commit()
-        db_session.refresh(job)
-        return job
+        refreshed = db_session.scalar(
+            select(ResearchJob)
+            .options(selectinload(ResearchJob.events))
+            .where(ResearchJob.id == job_id)
+        )
+        return refreshed
 
     @app.get("/api/v1/jobs", response_model=JobListRead)
     def list_jobs(
@@ -342,9 +412,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _: AuthContext = Depends(require_admin_or_service),
     ):
         raw_topic = (
-            payload.title
-            or payload.url
-            or (payload.text[:120] if payload.text else "")
+            payload.title or payload.url or (payload.text[:120] if payload.text else "")
         ).strip()
         if not raw_topic:
             raise HTTPException(
@@ -366,7 +434,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
         db_session.add(job)
-        db_session.add(JobEvent(job_id=job_id, to_status="pending", message="Job created via quick ingest"))
+        db_session.add(
+            JobEvent(job_id=job_id, to_status="pending", message="Job created via quick ingest")
+        )
         db_session.commit()
         db_session.refresh(job)
 
@@ -442,7 +512,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if payload.job_id:
             existing = db_session.scalar(
                 select(Brief)
-                .options(selectinload(Brief.sources), selectinload(Brief.claims).selectinload(Claim.sources))
+                .options(
+                    selectinload(Brief.sources),
+                    selectinload(Brief.claims).selectinload(Claim.sources),
+                )
                 .where(Brief.job_id == payload.job_id)
             )
             if existing:
@@ -546,7 +619,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Re-fetch with loaded relationships
         persisted = db_session.scalar(
             select(Brief)
-            .options(selectinload(Brief.sources), selectinload(Brief.claims).selectinload(Claim.sources))
+            .options(
+                undefer(Brief.content_markdown),
+                selectinload(Brief.sources).undefer(Source.relevance),
+                selectinload(Brief.claims).selectinload(Claim.sources),
+            )
             .where(Brief.id == brief.id)
         )
         return _build_brief_detail_response(persisted)
@@ -594,22 +671,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if subcategory:
             base = base.where(Brief.subcategory == subcategory)
 
-        total = db_session.scalar(select(func.count()).select_from(base.subquery())) or 0
-        rows = db_session.scalars(
-            base.order_by(Brief.published_at.desc(), Brief.id.desc()).limit(limit).offset(offset)
-        ).all()
-
-        # If tag filter is specified, filter in memory or via json contains
+        # Tag filter via json_each
         if tag:
             tag_values = func.json_each(Brief.tags).table_valued("value").alias("tag_values")
             base = base.where(
                 exists(select(1).select_from(tag_values).where(tag_values.c.value == tag))
             )
 
-            total = db_session.scalar(select(func.count()).select_from(base.subquery())) or 0
-            rows = db_session.scalars(
-                base.order_by(Brief.published_at.desc(), Brief.id.desc()).limit(limit).offset(offset)
-            ).all()
+        total = db_session.scalar(select(func.count()).select_from(base.subquery())) or 0
+        rows = db_session.scalars(
+            base.order_by(Brief.published_at.desc(), Brief.id.desc()).limit(limit).offset(offset)
+        ).all()
 
         return {"briefs": rows, "total": total, "limit": limit, "offset": offset}
 
@@ -621,7 +693,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         brief = db_session.scalar(
             select(Brief)
-            .options(selectinload(Brief.sources), selectinload(Brief.claims).selectinload(Claim.sources))
+            .options(
+                undefer(Brief.content_markdown),
+                selectinload(Brief.sources).undefer(Source.relevance),
+                selectinload(Brief.claims).selectinload(Claim.sources),
+            )
             .where(Brief.id == brief_id)
         )
         if not brief:
@@ -644,6 +720,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         return _build_brief_detail_response(brief)
 
+    @app.get("/api/v1/briefs/{brief_id}/revisions", response_model=list[BriefRevisionRead])
+    def get_brief_revisions(
+        brief_id: str,
+        db_session: SASession = Depends(get_db),
+        auth: AuthContext = Depends(get_auth_context),
+    ):
+        brief = db_session.get(Brief, brief_id)
+        if not brief:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Brief not found",
+            )
+        if not auth.is_admin:
+            if not settings.public_enabled:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Public access is currently disabled.",
+                )
+            if brief.visibility != "public":
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Brief not found",
+                )
+        return db_session.scalars(
+            select(BriefRevision)
+            .where(BriefRevision.brief_id == brief_id)
+            .order_by(BriefRevision.created_at.desc(), BriefRevision.id.desc())
+        ).all()
+
     @app.patch("/api/v1/briefs/{brief_id}", response_model=BriefDetailRead)
     def update_brief(
         brief_id: str,
@@ -653,7 +758,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         brief = db_session.scalar(
             select(Brief)
-            .options(selectinload(Brief.sources), selectinload(Brief.claims).selectinload(Claim.sources))
+            .options(
+                undefer(Brief.content_markdown),
+                selectinload(Brief.sources).undefer(Source.relevance),
+                selectinload(Brief.claims).selectinload(Claim.sources),
+            )
             .where(Brief.id == brief_id)
         )
         if not brief:
@@ -829,10 +938,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def spa(full_path: str, request: Request):
             candidate = (static_dir / full_path).resolve()
             root = static_dir.resolve()
-            if (
-                os.path.commonpath([str(root), str(candidate)]) == str(root)
-                and candidate.is_file()
-            ):
+            if os.path.commonpath([str(root), str(candidate)]) == str(root) and candidate.is_file():
                 return FileResponse(candidate)
             index = static_dir / "index.html"
             if index.is_file():

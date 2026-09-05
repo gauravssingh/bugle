@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------- Auth Context ----------------
 
+
 class AuthMeResponse(BaseModel):
     role: str  # admin | service | anonymous
     email: str | None = None
@@ -18,6 +19,7 @@ class AuthMeResponse(BaseModel):
 
 
 # ---------------- Research Jobs ----------------
+
 
 class JobCreate(BaseModel):
     id: str | None = None
@@ -41,6 +43,17 @@ class JobUpdate(BaseModel):
     completed_at: datetime | None = None
 
 
+class JobEventRead(BaseModel):
+    id: int
+    job_id: str
+    from_status: str | None = None
+    to_status: str
+    message: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class JobRead(BaseModel):
     id: str
     topic: str
@@ -57,6 +70,7 @@ class JobRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    events: list[JobEventRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,6 +98,7 @@ class QuickIngestResponse(BaseModel):
 
 
 # ---------------- Sources & Claims ----------------
+
 
 class SourceCreate(BaseModel):
     temp_id: str | None = None  # Client-provided identifier to correlate with claims
@@ -134,6 +149,7 @@ class ClaimRead(BaseModel):
 
 
 # ---------------- Research Briefs ----------------
+
 
 class BriefCreate(BaseModel):
     job_id: str | None = None
@@ -213,6 +229,28 @@ class BriefDetailRead(BriefSummaryRead):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BriefRevisionRead(BaseModel):
+    id: int
+    brief_id: str
+    title: str
+    summary: str
+    content_markdown: str
+    claims_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DbVacuumResponse(BaseModel):
+    status: str
+    message: str
+    page_count: int
+    freelist_pages: int
+    fragmentation_pct: float
+    db_size_bytes: int
+    wal_size_bytes: int
+
+
 class BriefListRead(BaseModel):
     briefs: list[BriefSummaryRead]
     total: int
@@ -240,6 +278,7 @@ class TaxonomiesRead(BaseModel):
 
 
 # ---------------- Backward Compatibility ----------------
+
 
 class PostCreate(BaseModel):
     title: str = Field(default="", max_length=200)
