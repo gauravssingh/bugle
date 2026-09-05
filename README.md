@@ -173,8 +173,6 @@ tail -f ~/Library/Logs/bugle/stdout.log
 tail -f ~/Library/Logs/bugle/stderr.log
 ```
 
----
-
 ## Deployment Target
 
 Mirrors the MyMonee deployment pattern:
@@ -182,3 +180,11 @@ Mirrors the MyMonee deployment pattern:
 - Cloudflare Tunnel connects origin loopback to `bugle.gauravs-apps.in`.
 - Cloudflare Access enforces authentication before traffic ever touches the local network.
 - Deployments are executed via `scripts/trigger_deploy.sh`.
+
+---
+
+## Documentation
+
+- **[Frontend Design System & UI/UX Guidelines](FRONTEND.md)**: Design approach, dark theme tokens, desktop vs. mobile reading layouts, and component patterns.
+- **[Architecture & Migration Plan](docs/ARCHITECTURE_AND_MIGRATION_PLAN.md)**: Detailed technical specification, SQLite schema, and API contracts.
+- **[Apple Shortcuts Setup](docs/APPLE_SHORTCUTS_SETUP.md)**: Configuration guide for iOS action extension and voice triggers.
