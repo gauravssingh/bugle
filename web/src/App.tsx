@@ -399,14 +399,6 @@ function AppContent() {
               <span className="sidebar-nav-label">Full Catalogue</span>
               <span className="sidebar-badge-muted">{briefs.length}</span>
             </button>
-
-            <button
-              className={`sidebar-nav-item ${activeTab === "profile" && !currentBriefId ? "active" : ""}`}
-              onClick={() => switchTab("profile")}
-            >
-              <IconUser className="sidebar-nav-icon" />
-              <span className="sidebar-nav-label">Operator Profile</span>
-            </button>
           </nav>
 
           {/* Sidebar Topics Taxonomy */}
@@ -452,64 +444,64 @@ function AppContent() {
 
       {/* Main Content Area */}
       <div className="app-main-area">
-        <main className="wrap">
-          {/* Mobile Header (Clean: Top profile avatar removed, accessible via bottom nav) */}
-          <header className="mobile-header">
-            <div className="header-brand">
-              <div className="brand-title-group">
-                <h1 className="brand-logo">
-                  <a href="#" onClick={goHome} className="brand-link">
-                    🎺 Bugle
-                  </a>
-                </h1>
-                <span className="brand-badge">Research</span>
+        <main className={`wrap ${currentBriefId ? "in-detail-view" : ""}`}>
+          {/* Mobile Header (Hidden in detail view so back bar docks cleanly at top) */}
+          {!currentBriefId && (
+            <header className="mobile-header">
+              <div className="header-brand">
+                <div className="brand-title-group">
+                  <h1 className="brand-logo">
+                    <a href="#" onClick={goHome} className="brand-link">
+                      🎺 Bugle
+                    </a>
+                  </h1>
+                  <span className="brand-badge">Research</span>
+                </div>
+                <p className="brand-tagline">Autonomous Research Intelligence</p>
               </div>
-              <p className="brand-tagline">Autonomous Research Intelligence</p>
-            </div>
-          </header>
+            </header>
+          )}
 
-          {/* Desktop Top Header Bar */}
-          <div className="desktop-top-bar">
-            <div className="desktop-page-info">
-              <h2 className="desktop-page-title">
-                {currentBriefId
-                  ? "Research Investigation"
-                  : activeTab === "home"
-                  ? "Intelligence Feed"
-                  : activeTab === "search"
-                  ? "Archive Search"
-                  : activeTab === "saved"
-                  ? "Saved Bookmarks"
-                  : activeTab === "archive"
-                  ? "Research Catalogue"
-                  : "Operator Profile & System"}
-              </h2>
-              <p className="desktop-page-desc">
-                {currentBriefId
-                  ? "Detailed evidence synthesis and claims verification audit"
-                  : activeTab === "home"
-                  ? "Latest autonomous research briefs synthesized by Hermes engine"
-                  : activeTab === "search"
-                  ? "Semantic keyword and taxonomy discovery across all investigations"
-                  : activeTab === "saved"
-                  ? "Your saved investigations bookmarked for quick reference"
-                  : activeTab === "archive"
-                  ? "Comprehensive archive catalogued by category domain"
-                  : "System metrics, AI engine configuration & research spend analytics"}
-              </p>
-            </div>
+          {/* Desktop Top Header Bar (Shown on top-level tabs) */}
+          {!currentBriefId && (
+            <div className="desktop-top-bar">
+              <div className="desktop-page-info">
+                <h2 className="desktop-page-title">
+                  {activeTab === "home"
+                    ? "Intelligence Feed"
+                    : activeTab === "search"
+                    ? "Archive Search"
+                    : activeTab === "saved"
+                    ? "Saved Bookmarks"
+                    : activeTab === "archive"
+                    ? "Research Catalogue"
+                    : "Operator Profile & System"}
+                </h2>
+                <p className="desktop-page-desc">
+                  {activeTab === "home"
+                    ? "Latest autonomous research briefs synthesized by Hermes engine"
+                    : activeTab === "search"
+                    ? "Semantic keyword and taxonomy discovery across all investigations"
+                    : activeTab === "saved"
+                    ? "Your saved investigations bookmarked for quick reference"
+                    : activeTab === "archive"
+                    ? "Comprehensive archive catalogued by category domain"
+                    : "System metrics, AI engine configuration & research spend analytics"}
+                </p>
+              </div>
 
-            <div className="desktop-top-actions">
-              <button
-                className="btn-icon-action"
-                onClick={() => setShowHealthModal(true)}
-                title="View Database & System Health"
-                aria-label="View Database & System Health"
-              >
-                <IconDatabase />
-              </button>
+              <div className="desktop-top-actions">
+                <button
+                  className="btn-icon-action"
+                  onClick={() => setShowHealthModal(true)}
+                  title="View Database & System Health"
+                  aria-label="View Database & System Health"
+                >
+                  <IconDatabase />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {error && <div className="error-banner">{error}</div>}
 

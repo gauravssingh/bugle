@@ -939,10 +939,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             candidate = (static_dir / full_path).resolve()
             root = static_dir.resolve()
             if os.path.commonpath([str(root), str(candidate)]) == str(root) and candidate.is_file():
+                if candidate.name == "index.html":
+                    return FileResponse(
+                        candidate,
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                    )
                 return FileResponse(candidate)
             index = static_dir / "index.html"
             if index.is_file():
-                return FileResponse(index)
+                return FileResponse(
+                    index,
+                    headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                )
             return JSONResponse({"detail": "Not found"}, status_code=404)
 
     return app

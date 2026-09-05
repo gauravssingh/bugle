@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type BriefRevision } from "../api";
 import { formatTime } from "../format";
 import { useModalChrome } from "../hooks/useModalChrome";
+import { TechnicalTag } from "./Badge";
 import { IconClose, IconHistory } from "./Icons";
 
 interface RevisionsDrawerProps {
@@ -83,9 +84,9 @@ export function RevisionsDrawer({ briefId, isOpen, onClose }: RevisionsDrawerPro
                     <h4>{activeRev.title}</h4>
                     <p className="ink-muted">{activeRev.summary || "No summary provided in this revision."}</p>
                     <div className="revision-tags-row">
-                      <span className="badge">
-                        {activeRev.claims_snapshot?.length || 0} claims snapshotted
-                      </span>
+                      <TechnicalTag
+                        label={`${activeRev.claims_snapshot?.length || 0} claims snapshotted`}
+                      />
                     </div>
                   </div>
 

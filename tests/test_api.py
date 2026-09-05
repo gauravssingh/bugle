@@ -636,3 +636,25 @@ def test_idempotent_schema_migration(settings):
         assert "ix_briefs_published_at" in index_names
         assert "ix_sources_brief_id" in index_names
         assert "ix_claims_brief_id" in index_names
+
+
+def test_spa_index_html_cache_control(tmp_path):
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    (dist_dir / "index.html").write_text("<!doctype html><html><body>Test</body></html>")
+    settings = Settings(
+        data_dir=str(tmp_path),
+        static_dir=str(dist_dir),
+        service_token=SERVICE_TOKEN,
+        admin_email=ADMIN_EMAIL,
+    )
+    client = TestClient(create_app(settings))
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "no-cache" in r.headers.get("Cache-Control", "")
+    assert "no-store" in r.headers.get("Cache-Control", "")
+
+    # Also test path fallback (e.g. /brief/123)
+    r2 = client.get("/brief/123")
+    assert r2.status_code == 200
+    assert "no-cache" in r2.headers.get("Cache-Control", "")

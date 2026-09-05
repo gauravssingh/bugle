@@ -2,9 +2,24 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, type BriefDetail } from "../api";
-import { IconHistory, IconStar } from "../components/Icons";
+import {
+  AccessBadge,
+  CategoryBadge,
+  CostMetadata,
+  StatusBadge,
+  TechnicalTag,
+} from "../components/Badge";
+import { IconArrowLeft, IconHistory, IconStar } from "../components/Icons";
 import { RevisionsDrawer } from "../components/RevisionsDrawer";
-import { formatCost, formatDateTimeParts, formatDuration, formatInr, formatModel, formatTime } from "../format";
+import {
+  estimateReadingTime,
+  formatCost,
+  formatDateTimeParts,
+  formatDuration,
+  formatInr,
+  formatModel,
+  formatTime,
+} from "../format";
 import { useConfirm } from "../hooks/useConfirm";
 
 interface BriefDetailPageProps {
@@ -26,8 +41,8 @@ export function BriefDetailPage({
   onVisibilityToggled,
   onBriefDeleted,
 }: BriefDetailPageProps) {
-  const [loading, setLoading] = useState(false);
   const [brief, setBrief] = useState<BriefDetail | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
   const { isArmed, trigger: triggerDelete } = useConfirm(2500);
@@ -81,12 +96,19 @@ export function BriefDetailPage({
   return (
     <article className="brief-detail-view">
       <div className="sticky-back-bar detail-back-bar">
-        <button className="back-btn" onClick={onBack}>
-          ← Back to all investigations
+        <button
+          type="button"
+          className="back-btn"
+          onClick={onBack}
+          aria-label="Back to all investigations"
+        >
+          <IconArrowLeft className="back-btn-arrow" />
+          <span className="back-btn-text">Back to all investigations</span>
         </button>
         {brief && (
           <div className="detail-top-actions">
             <button
+              type="button"
               className="btn-icon-action"
               onClick={() => setRevisionsOpen(true)}
               title="Audit Revisions"
@@ -95,6 +117,7 @@ export function BriefDetailPage({
               <IconHistory />
             </button>
             <button
+              type="button"
               className={`btn-icon-action ${isSaved ? "saved" : ""}`}
               onClick={() => onToggleSave(brief.id)}
               title={isSaved ? "Bookmarked" : "Bookmark this brief"}
@@ -115,41 +138,62 @@ export function BriefDetailPage({
           {/* Left Column: Reading Synthesis & Full Markdown */}
           <div className="detail-main-column">
             <header className="detail-header">
-              <div className="badge-row">
-                {brief.cost_usd !== null && brief.cost_usd !== undefined && (
-                  <span
-                    className="badge badge-cost"
-                    title={`Cost: $${brief.cost_usd.toFixed(4)} USD${brief.cost_inr !== null ? ` ≈ ${formatInr(brief.cost_inr)} INR (@ ₹${brief.cost_exchange_rate || 95.56}/$)` : ""}`}
-                  >
-                    💰 {formatCost(brief.cost_usd)}{brief.cost_inr !== null ? ` · ${formatInr(brief.cost_inr)}` : ""}
-                  </span>
+              {/* Category, Status, & Visibility Badges */}
+              <div className="detail-badges-row">
+                <CategoryBadge category={brief.category} />
+                {brief.subcategory && <CategoryBadge category={brief.subcategory} />}
+                {brief.confidence && (
+                  <StatusBadge status={`${brief.confidence} confidence`} dot={false} />
                 )}
-                {brief.duration_seconds && (
-                  <span className="badge badge-duration" title={`Duration: ${brief.duration_seconds}s`}>
-                    ⏱️ {formatDuration(brief.duration_seconds)}
-                  </span>
-                )}
-                {brief.model && (
-                  <span className="badge badge-model" title={`Model: ${brief.model}`}>
-                    {formatModel(brief.model)}
-                  </span>
-                )}
-                <span className="badge badge-category">
-                  {brief.category}
-                  {brief.subcategory ? ` / ${brief.subcategory}` : ""}
-                </span>
-                <span className={`badge badge-depth-${brief.research_depth}`}>
-                  {brief.research_depth} Depth
-                </span>
-                <span className="badge badge-category">
-                  {brief.confidence} Confidence
-                </span>
-                <span className={`badge badge-${brief.visibility}`}>
-                  {brief.visibility === "private" ? "🔒 Private" : "🌐 Public"}
-                </span>
+                <AccessBadge visibility={brief.visibility} />
               </div>
 
-              <h2 className="detail-title">{brief.title}</h2>
+              {/* Subdued Inline Reading & Cost Metadata Line */}
+              <div className="detail-meta-line">
+                <span className="meta-text">
+                  {publishedAt.date}
+                  {publishedAt.time ? ` · ${publishedAt.time}` : ""}
+                </span>
+                <span className="meta-sep">·</span>
+                <span className="meta-text">
+                  {estimateReadingTime(brief.summary || brief.content_markdown)}
+                </span>
+                {brief.duration_seconds && (
+                  <>
+                    <span className="meta-sep">·</span>
+                    <span className="meta-text">⏱️ {formatDuration(brief.duration_seconds)}</span>
+                  </>
+                )}
+                {brief.cost_usd !== null && brief.cost_usd !== undefined && (
+                  <>
+                    <span className="meta-sep">·</span>
+                    <CostMetadata
+                      costUsd={brief.cost_usd}
+                      costInr={brief.cost_inr}
+                      exchangeRate={brief.cost_exchange_rate}
+                    />
+                  </>
+                )}
+              </div>
+
+              {/* Dominant Hero Title */}
+              <h1 className="detail-title">{brief.title}</h1>
+
+              {/* Technical / Model Metadata Tags & Evidence count */}
+              <div className="detail-tech-row">
+                {brief.model && (
+                  <TechnicalTag label={formatModel(brief.model)} title={`Model Engine: ${brief.model}`} />
+                )}
+                <TechnicalTag
+                  label={`${brief.research_depth.toLowerCase()} depth`}
+                  title={`Depth: ${brief.research_depth}`}
+                />
+                <TechnicalTag label={brief.research_type} title={`Research Type: ${brief.research_type}`} />
+                <span className="detail-evidence-inline">
+                  {brief.source_count} {brief.source_count === 1 ? "source" : "sources"} ·{" "}
+                  {brief.claim_count} {brief.claim_count === 1 ? "claim" : "claims"}
+                </span>
+              </div>
             </header>
 
             {/* Executive Summary Callout */}
@@ -316,7 +360,7 @@ export function BriefDetailPage({
                         >
                           {source.title || source.url} ↗
                         </a>
-                        <span className="badge badge-category">{source.source_type}</span>
+                        <TechnicalTag label={source.source_type} />
                       </div>
                       <div className="source-meta">
                         <span>
