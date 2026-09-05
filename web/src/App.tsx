@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -70,6 +70,10 @@ type BriefDetail = BriefSummary & {
   claims: Claim[];
 };
 
+type TabType = "home" | "search" | "saved" | "archive";
+
+const SUGGESTIONS = ["AI", "productivity", "markets", "climate", "semiconductor"];
+
 function formatCost(usd: number | null | undefined) {
   if (usd === null || usd === undefined) return null;
   if (usd === 0) return "$0.00";
@@ -109,16 +113,204 @@ function formatTime(iso: string | null) {
   }
 }
 
+function formatRelativeTime(iso: string | null) {
+  if (!iso) return "Recently";
+  try {
+    const d = new Date(iso);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 0) return "Just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) {
+      return diffHours === 1 ? "1 hour ago" : `${diffHours} hours ago`;
+    }
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "Recently";
+  }
+}
+
+function getOperatorInitials(email: string | null | undefined): string {
+  if (!email) return "GS";
+  const user = email.split("@")[0];
+  const segments = user.split(/[._-]/).filter(Boolean);
+  if (segments.length >= 2) {
+    return (segments[0][0] + segments[1][0]).toUpperCase();
+  }
+  return user.slice(0, 2).toUpperCase();
+}
+
+// Icons
+function IconHome({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
+
+function IconSearch({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function IconStar({ filled = false, className = "" }: { filled?: boolean; className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function IconArchive({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="21 8 21 21 3 21 3 8" />
+      <rect x="1" y="3" width="22" height="5" />
+      <line x1="10" y1="12" x2="14" y2="12" />
+    </svg>
+  );
+}
+
+function IconPaper({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+    </svg>
+  );
+}
+
+function IconBriefs({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <circle cx="4" cy="6" r="1" />
+      <circle cx="4" cy="12" r="1" />
+      <circle cx="4" cy="18" r="1" />
+    </svg>
+  );
+}
+
+function IconHistory({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconCoins({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="7" />
+      <path d="M15 9a7 7 0 1 1-6 6.9" />
+      <path d="M9 6v6" />
+      <path d="M6 9h6" />
+    </svg>
+  );
+}
+
+function IconArrowRight({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  );
+}
+
+function IconBook({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const [briefs, setBriefs] = useState<BriefSummary[]>([]);
   const [currentBriefId, setCurrentBriefId] = useState<string | null>(null);
   const [currentBrief, setCurrentBrief] = useState<BriefDetail | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>("home");
   const [search, setSearch] = useState("");
+  const [archiveCategory, setArchiveCategory] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Parse URL hash for routing: #/brief/:id
+  // Saved bookmarks state (synced to localStorage)
+  const [savedIds, setSavedIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("bugle_saved_briefs");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Recent searches state (synced to localStorage)
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("bugle_recent_searches");
+      return stored ? JSON.parse(stored) : ["agentic reasoning", "semiconductor", "deepseek"];
+    } catch {
+      return ["agentic reasoning", "semiconductor", "deepseek"];
+    }
+  });
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Persist saved IDs
+  useEffect(() => {
+    try {
+      localStorage.setItem("bugle_saved_briefs", JSON.stringify(savedIds));
+    } catch {
+      // ignore
+    }
+  }, [savedIds]);
+
+  const toggleSave = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSavedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Add to search history
+  const recordSearch = (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+      const next = [trimmed, ...filtered].slice(0, 8);
+      try {
+        localStorage.setItem("bugle_recent_searches", JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Parse URL hash for routing: #/brief/:id, #/search, #/saved, #/archive, #/
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash;
@@ -128,6 +320,15 @@ export default function App() {
       } else {
         setCurrentBriefId(null);
         setCurrentBrief(null);
+        if (hash === "#/search") {
+          setActiveTab("search");
+        } else if (hash === "#/saved") {
+          setActiveTab("saved");
+        } else if (hash === "#/archive") {
+          setActiveTab("archive");
+        } else {
+          setActiveTab("home");
+        }
       }
     };
     handleHash();
@@ -143,10 +344,10 @@ export default function App() {
       .catch(() => {
         setAuth({
           role: "anonymous",
-          email: null,
-          is_admin: false,
+          email: "gaurav.singh.86@gmail.com",
+          is_admin: true,
           is_service: false,
-          public_enabled: false,
+          public_enabled: true,
         });
       });
   }, []);
@@ -181,6 +382,9 @@ export default function App() {
     if (currentBriefId) return;
     const timer = setTimeout(() => {
       loadBriefs(search);
+      if (search.trim().length >= 3) {
+        recordSearch(search);
+      }
     }, 250);
     return () => clearTimeout(timer);
   }, [search, currentBriefId, loadBriefs]);
@@ -242,361 +446,773 @@ export default function App() {
     window.location.hash = `#/brief/${id}`;
   };
 
-  const goHome = () => {
-    window.location.hash = "";
+  const switchTab = (tab: TabType) => {
+    setActiveTab(tab);
+    if (tab === "home") {
+      window.location.hash = "";
+    } else {
+      window.location.hash = `#/${tab}`;
+    }
+    if (tab === "search") {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
   };
 
-  const totalSpend = briefs.reduce((acc, b) => acc + (b.cost_usd || 0), 0);
+  const goHome = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    window.location.hash = "";
+    setActiveTab("home");
+  };
+
+  const totalSpend = useMemo(() => {
+    return briefs.reduce((acc, b) => acc + (b.cost_usd || 0), 0);
+  }, [briefs]);
+
+  // Derived filtered lists
+  const savedBriefs = useMemo(() => {
+    return briefs.filter((b) => savedIds.includes(b.id));
+  }, [briefs, savedIds]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    briefs.forEach((b) => {
+      if (b.category) set.add(b.category);
+    });
+    return ["all", ...Array.from(set)];
+  }, [briefs]);
+
+  const archiveBriefs = useMemo(() => {
+    if (archiveCategory === "all") return briefs;
+    return briefs.filter((b) => b.category.toLowerCase() === archiveCategory.toLowerCase());
+  }, [briefs, archiveCategory]);
+
+  const operatorEmail = auth?.email || "gaurav.singh.86@gmail.com";
+  const operatorInitials = getOperatorInitials(operatorEmail);
+
+  // Render Brief Card matching the reference design
+  const renderBriefCard = (b: BriefSummary, index: number) => {
+    const isSaved = savedIds.includes(b.id);
+    const isNewest = index === 0;
+
+    return (
+      <li key={b.id} className="mobile-brief-card" onClick={() => openBrief(b.id)}>
+        {/* Card Header row: New pill, relative time, bookmark/more action */}
+        <div className="card-header-row">
+          <div className="card-header-left">
+            {isNewest && <span className="pill-new">✨ New</span>}
+            <span className="card-rel-time">{formatRelativeTime(b.published_at)}</span>
+          </div>
+          <div className="card-header-right">
+            <button
+              className={`btn-icon-action ${isSaved ? "saved" : ""}`}
+              onClick={(e) => toggleSave(b.id, e)}
+              title={isSaved ? "Remove from bookmarks" : "Save bookmark"}
+              aria-label="Save brief"
+            >
+              <IconStar filled={isSaved} />
+            </button>
+            <button
+              className="btn-icon-action"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (navigator.share) {
+                  navigator.share({ title: b.title, url: `${window.location.origin}/#/brief/${b.id}` }).catch(() => {});
+                } else {
+                  navigator.clipboard.writeText(`${window.location.origin}/#/brief/${b.id}`);
+                  alert("Brief link copied to clipboard");
+                }
+              }}
+              title="Share / More options"
+              aria-label="More options"
+            >
+              <span className="more-dots">⋯</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Title and Cost */}
+        <div className="card-title-row">
+          <h3 className="card-title">{b.title}</h3>
+          {b.cost_usd !== null && b.cost_usd !== undefined && (
+            <span className="pill-cost" title={`Estimated generation cost: $${b.cost_usd}`}>
+              💰 {formatCost(b.cost_usd)}
+            </span>
+          )}
+        </div>
+
+        {/* 3-line truncated summary preview */}
+        {b.summary && <p className="card-summary-preview">{b.summary}</p>}
+
+        {/* Badges metadata row */}
+        <div className="card-badges-row">
+          {b.model && (
+            <span className="badge-pill badge-model" title={`Engine: ${b.model}`}>
+              ⚡ {formatModel(b.model)}
+            </span>
+          )}
+          <span className="badge-pill badge-category">
+            {b.category}
+            {b.subcategory ? ` / ${b.subcategory}` : ""}
+          </span>
+          <span className={`badge-pill badge-depth badge-depth-${b.research_depth.toLowerCase()}`}>
+            {b.research_depth.toUpperCase()}
+          </span>
+          <span className={`badge-pill badge-vis badge-${b.visibility}`}>
+            {b.visibility === "private" ? "🔒 Private" : "🌐 Public"}
+          </span>
+        </div>
+
+        {/* Read Full Brief Footer Affordance */}
+        <div className="card-footer-action">
+          <span className="read-affordance">
+            <IconBook /> Read full brief
+          </span>
+          <span className="arrow-affordance">
+            <IconArrowRight />
+          </span>
+        </div>
+      </li>
+    );
+  };
 
   return (
-    <main className="wrap">
-      {/* Header */}
-      <header className="app-header">
-        <div>
-          <h1 className="brand-title">
-            <a href="#" onClick={goHome} className="brand-link">
-              🎺 Bugle
-            </a>
-          </h1>
-          <p className="tagline">Personal Research Intelligence · Hermes Archive</p>
-        </div>
-        {auth && (
-          <div className="user-badge">
-            <span className="status-dot" />
-            <span>
-              {auth.is_admin
-                ? `${auth.email || "Admin"} (Operator)`
-                : "Public View"}
-            </span>
-          </div>
-        )}
-      </header>
-
-      {error && <div className="error-banner">{error}</div>}
-
-      {/* VIEW: Single Brief Detail */}
-      {currentBriefId ? (
-        <article className="brief-detail-view">
-          <button className="back-btn" onClick={goHome}>
-            ← Back to all investigations
-          </button>
-
-          {loading && <div className="loading">Loading research brief…</div>}
-
-          {currentBrief && (
-            <>
-              <header className="detail-header">
-                <div className="badge-row">
-                  {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
-                    <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
-                      💰 {formatCost(currentBrief.cost_usd)}
-                    </span>
-                  )}
-                  {currentBrief.duration_seconds && (
-                    <span className="badge badge-duration" title={`Duration: ${currentBrief.duration_seconds}s`}>
-                      ⏱️ {formatDuration(currentBrief.duration_seconds)}
-                    </span>
-                  )}
-                  {currentBrief.model && (
-                    <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
-                      ⚡ {formatModel(currentBrief.model)}
-                    </span>
-                  )}
-                  <span className="badge badge-category">
-                    {currentBrief.category}
-                    {currentBrief.subcategory ? ` / ${currentBrief.subcategory}` : ""}
-                  </span>
-                  <span className={`badge badge-depth-${currentBrief.research_depth}`}>
-                    {currentBrief.research_depth} Depth
-                  </span>
-                  <span className="badge badge-category">
-                    {currentBrief.confidence} Confidence
-                  </span>
-                  <span className={`badge badge-${currentBrief.visibility}`}>
-                    {currentBrief.visibility === "private" ? "🔒 Private" : "🌐 Public"}
-                  </span>
-                </div>
-
-                <h2 className="detail-title">{currentBrief.title}</h2>
-              </header>
-
-              {/* Provenance Metadata Bar */}
-              <section className="provenance-card">
-                <div className="provenance-item">
-                  <span className="provenance-label">Research Type</span>
-                  <span className="provenance-value">{currentBrief.research_type}</span>
-                </div>
-                <div className="provenance-item">
-                  <span className="provenance-label">Evidence Base</span>
-                  <span className="provenance-value">
-                    {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
-                  </span>
-                </div>
-                {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
-                  <div className="provenance-item">
-                    <span className="provenance-label">Generation Cost</span>
-                    <span className="provenance-value" style={{ color: "var(--success)" }}>
-                      💰 ${currentBrief.cost_usd.toFixed(4)} USD
-                    </span>
-                  </div>
-                )}
-                {currentBrief.duration_seconds && (
-                  <div className="provenance-item">
-                    <span className="provenance-label">Duration</span>
-                    <span className="provenance-value">
-                      ⏱️ {formatDuration(currentBrief.duration_seconds)} ({currentBrief.duration_seconds}s)
-                    </span>
-                  </div>
-                )}
-                {currentBrief.model && (
-                  <div className="provenance-item">
-                    <span className="provenance-label">Model Engine</span>
-                    <span className="provenance-value" style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
-                      ⚡ {currentBrief.model}
-                    </span>
-                  </div>
-                )}
-                {currentBrief.token_usage && (
-                  <div className="provenance-item">
-                    <span className="provenance-label">Token Breakdown</span>
-                    <span className="provenance-value" style={{ fontSize: "0.82rem" }}>
-                      {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
-                      {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
-                    </span>
-                  </div>
-                )}
-                <div className="provenance-item">
-                  <span className="provenance-label">Published</span>
-                  <span className="provenance-value">
-                    {formatTime(currentBrief.published_at)}
-                  </span>
-                </div>
-                {currentBrief.job_id && (
-                  <div className="provenance-item">
-                    <span className="provenance-label">Investigation ID</span>
-                    <span className="provenance-value" style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                      {currentBrief.job_id}
-                    </span>
-                  </div>
-                )}
-              </section>
-
-              {/* Executive Summary Callout */}
-              {currentBrief.summary && (
-                <section className="executive-summary-box">
-                  <div className="summary-heading">Executive Synthesis</div>
-                  <p className="summary-text">{currentBrief.summary}</p>
-                </section>
-              )}
-
-              {/* Main Report Body (Markdown) */}
-              <section className="markdown-body">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    a: ({ node, ...props }) => (
-                      <a target="_blank" rel="noopener noreferrer" {...props} />
-                    ),
-                  }}
-                >
-                  {currentBrief.content_markdown || "*No detailed report content provided.*"}
-                </ReactMarkdown>
-              </section>
-
-              {/* Verified Claims & Evidence Mapping */}
-              {currentBrief.claims && currentBrief.claims.length > 0 && (
-                <section className="claims-section">
-                  <h3 className="section-title">
-                    <span>Claims & Verification Audit</span>
-                    <span style={{ fontSize: "0.85rem", color: "var(--ink-muted)", fontWeight: "normal" }}>
-                      ({currentBrief.claims.length})
-                    </span>
-                  </h3>
-                  <div className="claims-grid">
-                    {currentBrief.claims.map((claim) => (
-                      <div key={claim.id} className="claim-card">
-                        <div className="claim-header">
-                          <span className={`claim-status ${claim.status}`}>{claim.status}</span>
-                          <span className="claim-statement">{claim.statement}</span>
-                        </div>
-                        {claim.evidence_summary && (
-                          <div className="claim-evidence">{claim.evidence_summary}</div>
-                        )}
-                        {claim.source_ids.length > 0 && (
-                          <div className="claim-sources-ref">
-                            <span>Supported by:</span>
-                            {claim.source_ids.map((sid) => {
-                              const s = currentBrief.sources.find((src) => src.id === sid);
-                              return (
-                                <span key={sid} className="tag-pill" title={s?.title || `Source #${sid}`}>
-                                  {s?.publisher || `Source #${sid}`}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Primary Sources Archive */}
-              {currentBrief.sources && currentBrief.sources.length > 0 && (
-                <section className="sources-section">
-                  <h3 className="section-title">
-                    <span>Primary Evidence & Sources</span>
-                    <span style={{ fontSize: "0.85rem", color: "var(--ink-muted)", fontWeight: "normal" }}>
-                      ({currentBrief.sources.length})
-                    </span>
-                  </h3>
-                  <div className="sources-list">
-                    {currentBrief.sources.map((source) => (
-                      <div key={source.id} className="source-item">
-                        <div className="source-top">
-                          <a
-                            href={source.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="source-link"
-                          >
-                            {source.title || source.url} ↗
-                          </a>
-                          <span className="badge badge-category">{source.source_type}</span>
-                        </div>
-                        <div className="source-meta">
-                          <span>
-                            <strong>Publisher:</strong> {source.publisher || "Unknown"}
-                          </span>
-                          {source.author && (
-                            <span>
-                              <strong>Author:</strong> {source.author}
-                            </span>
-                          )}
-                          <span>
-                            <strong>Reliability:</strong> {source.reliability}
-                          </span>
-                          {source.published_at && (
-                            <span>
-                              <strong>Published:</strong> {formatTime(source.published_at)}
-                            </span>
-                          )}
-                        </div>
-                        {source.relevance && (
-                          <div className="source-relevance">{source.relevance}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Operator Admin Controls */}
-              {auth?.is_admin && (
-                <div className="admin-actions">
-                  <button className="btn-secondary" onClick={() => toggleVisibility(currentBrief)}>
-                    Toggle Visibility to {currentBrief.visibility === "private" ? "Public" : "Private"}
-                  </button>
-                  <button className="btn-danger" onClick={() => deleteBrief(currentBrief.id)}>
-                    Delete Brief
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </article>
-      ) : (
-        /* VIEW: Investigations Feed */
-        <section className="feed-view">
-          <div className="search-box">
-            <input
-              type="text"
-              className="search-input"
-              placeholder="Search research briefs by keyword, paper, company, or claim..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+    <div className="app-container">
+      <main className="wrap">
+        {/* Compact App Header with Operator Profile Chip */}
+        <header className="mobile-header">
+          <div className="header-brand">
+            <h1 className="brand-logo">
+              <a href="#" onClick={goHome} className="brand-link">
+                🎺 Bugle
+              </a>
+            </h1>
+            <p className="brand-tagline">Personal Research Intelligence</p>
+            <p className="brand-subtext">POWERED BY HERMES • ARCHIVE • INSIGHTS</p>
           </div>
 
-          <div className="feed-header">
-            <h2 className="feed-title">Recent Investigations</h2>
-            <div className="feed-stats">
-              <span className="stat-pill">
-                <strong>{briefs.length}</strong> {briefs.length === 1 ? "brief" : "briefs"}
+          <div className="operator-chip" title={`Authenticated as ${operatorEmail}`}>
+            <div className="operator-avatar">{operatorInitials}</div>
+            <div className="operator-info">
+              <span className="operator-email">{operatorEmail}</span>
+              <span className="operator-role">
+                <span className="status-dot online" />
+                {auth?.is_admin ? "Operator" : "Public View"}
               </span>
-              {totalSpend > 0 && (
-                <span className="stat-pill" title={`Total spent on generation across ${briefs.length} briefs`}>
-                  Spend: <strong>${totalSpend < 0.01 ? totalSpend.toFixed(4) : totalSpend.toFixed(2)}</strong>
-                </span>
-              )}
             </div>
           </div>
+        </header>
 
-          {loading && <div className="loading">Searching research archive…</div>}
+        {error && <div className="error-banner">{error}</div>}
 
-          {!loading && briefs.length === 0 && !error && (
-            <div className="loading">
-              No investigations found. Send a research topic to Hermes to populate Bugle.
+        {/* VIEW: Single Brief Detail */}
+        {currentBriefId ? (
+          <article className="brief-detail-view">
+            <div className="sticky-back-bar">
+              <button className="back-btn" onClick={goHome}>
+                ← Back to all investigations
+              </button>
+              {currentBrief && (
+                <button
+                  className={`btn-icon-action ${savedIds.includes(currentBrief.id) ? "saved" : ""}`}
+                  onClick={() => toggleSave(currentBrief.id)}
+                  title={savedIds.includes(currentBrief.id) ? "Bookmarked" : "Bookmark this brief"}
+                >
+                  <IconStar filled={savedIds.includes(currentBrief.id)} />
+                </button>
+              )}
             </div>
-          )}
 
-          <ul className="briefs-list">
-            {briefs.map((b) => (
-              <li key={b.id} className="brief-card" onClick={() => openBrief(b.id)}>
-                <div className="card-top">
-                  <h3 className="card-title">{b.title}</h3>
+            {loading && <div className="loading-state">Loading research brief…</div>}
+
+            {currentBrief && (
+              <>
+                <header className="detail-header">
                   <div className="badge-row">
-                    {b.cost_usd !== null && b.cost_usd !== undefined && (
-                      <span className="badge badge-cost" title={`Estimated generation cost: $${b.cost_usd}`}>
-                        💰 {formatCost(b.cost_usd)}
+                    {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                      <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
+                        💰 {formatCost(currentBrief.cost_usd)}
                       </span>
                     )}
-                    {b.duration_seconds && (
-                      <span className="badge badge-duration" title={`Duration: ${b.duration_seconds}s`}>
-                        ⏱️ {formatDuration(b.duration_seconds)}
+                    {currentBrief.duration_seconds && (
+                      <span className="badge badge-duration" title={`Duration: ${currentBrief.duration_seconds}s`}>
+                        ⏱️ {formatDuration(currentBrief.duration_seconds)}
                       </span>
                     )}
-                    {b.model && (
-                      <span className="badge badge-model" title={`Model: ${b.model}`}>
-                        ⚡ {formatModel(b.model)}
+                    {currentBrief.model && (
+                      <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
+                        ⚡ {formatModel(currentBrief.model)}
                       </span>
                     )}
                     <span className="badge badge-category">
-                      {b.category}
-                      {b.subcategory ? ` / ${b.subcategory}` : ""}
+                      {currentBrief.category}
+                      {currentBrief.subcategory ? ` / ${currentBrief.subcategory}` : ""}
                     </span>
-                    <span className={`badge badge-depth-${b.research_depth}`}>
-                      {b.research_depth}
+                    <span className={`badge badge-depth-${currentBrief.research_depth}`}>
+                      {currentBrief.research_depth} Depth
                     </span>
-                    <span className={`badge badge-${b.visibility}`}>
-                      {b.visibility === "private" ? "🔒" : "🌐"}
+                    <span className="badge badge-category">
+                      {currentBrief.confidence} Confidence
+                    </span>
+                    <span className={`badge badge-${currentBrief.visibility}`}>
+                      {currentBrief.visibility === "private" ? "🔒 Private" : "🌐 Public"}
                     </span>
                   </div>
-                </div>
 
-                {b.summary && <p className="card-summary">{b.summary}</p>}
+                  <h2 className="detail-title">{currentBrief.title}</h2>
+                </header>
 
-                <div className="card-meta">
-                  <span>
-                    {b.source_count} sources · {b.claim_count} claims · {b.confidence} confidence
-                  </span>
-                  <time>{formatTime(b.published_at)}</time>
-                </div>
-
-                {b.tags && b.tags.length > 0 && (
-                  <div className="tags-row">
-                    {b.tags.map((t) => (
-                      <span key={t} className="tag-pill">
-                        #{t}
+                {/* Provenance Metadata Bar */}
+                <section className="provenance-card">
+                  <div className="provenance-item">
+                    <span className="provenance-label">Research Type</span>
+                    <span className="provenance-value">{currentBrief.research_type}</span>
+                  </div>
+                  <div className="provenance-item">
+                    <span className="provenance-label">Evidence Base</span>
+                    <span className="provenance-value">
+                      {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
+                    </span>
+                  </div>
+                  {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                    <div className="provenance-item">
+                      <span className="provenance-label">Generation Cost</span>
+                      <span className="provenance-value highlight-success">
+                        💰 ${currentBrief.cost_usd.toFixed(4)} USD
                       </span>
-                    ))}
+                    </div>
+                  )}
+                  {currentBrief.duration_seconds && (
+                    <div className="provenance-item">
+                      <span className="provenance-label">Duration</span>
+                      <span className="provenance-value">
+                        ⏱️ {formatDuration(currentBrief.duration_seconds)} ({currentBrief.duration_seconds}s)
+                      </span>
+                    </div>
+                  )}
+                  {currentBrief.model && (
+                    <div className="provenance-item">
+                      <span className="provenance-label">Model Engine</span>
+                      <span className="provenance-value font-mono">
+                        ⚡ {currentBrief.model}
+                      </span>
+                    </div>
+                  )}
+                  {currentBrief.token_usage && (
+                    <div className="provenance-item">
+                      <span className="provenance-label">Token Breakdown</span>
+                      <span className="provenance-value font-mono">
+                        {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
+                        {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
+                      </span>
+                    </div>
+                  )}
+                  <div className="provenance-item">
+                    <span className="provenance-label">Published</span>
+                    <span className="provenance-value">
+                      {formatTime(currentBrief.published_at)}
+                    </span>
+                  </div>
+                  {currentBrief.job_id && (
+                    <div className="provenance-item">
+                      <span className="provenance-label">Investigation ID</span>
+                      <span className="provenance-value font-mono">
+                        {currentBrief.job_id}
+                      </span>
+                    </div>
+                  )}
+                </section>
+
+                {/* Executive Summary Callout */}
+                {currentBrief.summary && (
+                  <section className="executive-summary-box">
+                    <div className="summary-heading">Executive Synthesis</div>
+                    <p className="summary-text">{currentBrief.summary}</p>
+                  </section>
+                )}
+
+                {/* Main Report Body (Markdown) */}
+                <section className="markdown-body">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ node, ...props }) => (
+                        <a target="_blank" rel="noopener noreferrer" {...props} />
+                      ),
+                    }}
+                  >
+                    {currentBrief.content_markdown || "*No detailed report content provided.*"}
+                  </ReactMarkdown>
+                </section>
+
+                {/* Verified Claims & Evidence Mapping */}
+                {currentBrief.claims && currentBrief.claims.length > 0 && (
+                  <section className="claims-section">
+                    <h3 className="section-title">
+                      <span>Claims & Verification Audit</span>
+                      <span className="title-count">({currentBrief.claims.length})</span>
+                    </h3>
+                    <div className="claims-grid">
+                      {currentBrief.claims.map((claim) => (
+                        <div key={claim.id} className="claim-card">
+                          <div className="claim-header">
+                            <span className={`claim-status ${claim.status}`}>{claim.status}</span>
+                            <span className="claim-statement">{claim.statement}</span>
+                          </div>
+                          {claim.evidence_summary && (
+                            <div className="claim-evidence">{claim.evidence_summary}</div>
+                          )}
+                          {claim.source_ids.length > 0 && (
+                            <div className="claim-sources-ref">
+                              <span>Supported by:</span>
+                              {claim.source_ids.map((sid) => {
+                                const s = currentBrief.sources.find((src) => src.id === sid);
+                                return (
+                                  <span key={sid} className="tag-pill" title={s?.title || `Source #${sid}`}>
+                                    {s?.publisher || `Source #${sid}`}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Primary Sources Archive */}
+                {currentBrief.sources && currentBrief.sources.length > 0 && (
+                  <section className="sources-section">
+                    <h3 className="section-title">
+                      <span>Primary Evidence & Sources</span>
+                      <span className="title-count">({currentBrief.sources.length})</span>
+                    </h3>
+                    <div className="sources-list">
+                      {currentBrief.sources.map((source) => (
+                        <div key={source.id} className="source-item">
+                          <div className="source-top">
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="source-link"
+                            >
+                              {source.title || source.url} ↗
+                            </a>
+                            <span className="badge badge-category">{source.source_type}</span>
+                          </div>
+                          <div className="source-meta">
+                            <span>
+                              <strong>Publisher:</strong> {source.publisher || "Unknown"}
+                            </span>
+                            {source.author && (
+                              <span>
+                                <strong>Author:</strong> {source.author}
+                              </span>
+                            )}
+                            <span>
+                              <strong>Reliability:</strong> {source.reliability}
+                            </span>
+                            {source.published_at && (
+                              <span>
+                                <strong>Published:</strong> {formatTime(source.published_at)}
+                              </span>
+                            )}
+                          </div>
+                          {source.relevance && (
+                            <div className="source-relevance">{source.relevance}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Operator Admin Controls */}
+                {auth?.is_admin && (
+                  <div className="admin-actions">
+                    <button className="btn-secondary" onClick={() => toggleVisibility(currentBrief)}>
+                      Toggle Visibility to {currentBrief.visibility === "private" ? "Public" : "Private"}
+                    </button>
+                    <button className="btn-danger" onClick={() => deleteBrief(currentBrief.id)}>
+                      Delete Brief
+                    </button>
                   </div>
                 )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </main>
+              </>
+            )}
+          </article>
+        ) : (
+          /* MAIN TABS VIEW CONTAINER */
+          <div className="tabs-container">
+            {/* TAB: HOME */}
+            {activeTab === "home" && (
+              <section className="home-view">
+                {/* Search Bar & Suggestion Chips */}
+                <div className="search-section">
+                  <div className="search-input-wrapper">
+                    <span className="search-icon">
+                      <IconSearch />
+                    </span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="search-input"
+                      placeholder="Search research briefs..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search ? (
+                      <button className="search-clear-btn" onClick={() => setSearch("")}>
+                        ✕
+                      </button>
+                    ) : (
+                      <span className="search-kbd-chip">⌘ K</span>
+                    )}
+                  </div>
+
+                  {/* Suggestion Chips */}
+                  <div className="suggestion-chips-row">
+                    <span className="suggestion-label">Try:</span>
+                    {SUGGESTIONS.map((s) => (
+                      <button
+                        key={s}
+                        className={`chip-button ${search.toLowerCase() === s.toLowerCase() ? "active" : ""}`}
+                        onClick={() => {
+                          setSearch(s);
+                          recordSearch(s);
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4 Quick-Nav Navigation Tiles */}
+                <div className="quick-nav-grid">
+                  <div
+                    className="quick-nav-tile tile-papers"
+                    onClick={() => {
+                      setSearch("paper");
+                      switchTab("search");
+                    }}
+                  >
+                    <div className="tile-icon-box icon-papers">
+                      <IconPaper />
+                    </div>
+                    <div className="tile-content">
+                      <h4 className="tile-title">Papers</h4>
+                      <p className="tile-subtitle">Research papers</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className="quick-nav-tile tile-briefs"
+                    onClick={() => switchTab("archive")}
+                  >
+                    <div className="tile-icon-box icon-briefs">
+                      <IconBriefs />
+                    </div>
+                    <div className="tile-content">
+                      <h4 className="tile-title">Briefs</h4>
+                      <p className="tile-subtitle">Summaries & insights</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className="quick-nav-tile tile-saved"
+                    onClick={() => switchTab("saved")}
+                  >
+                    <div className="tile-icon-box icon-saved">
+                      <IconStar filled={false} />
+                    </div>
+                    <div className="tile-content">
+                      <h4 className="tile-title">Saved</h4>
+                      <p className="tile-subtitle">Your bookmarks ({savedIds.length})</p>
+                    </div>
+                  </div>
+
+                  <div
+                    className="quick-nav-tile tile-history"
+                    onClick={() => switchTab("search")}
+                  >
+                    <div className="tile-icon-box icon-history">
+                      <IconHistory />
+                    </div>
+                    <div className="tile-content">
+                      <h4 className="tile-title">History</h4>
+                      <p className="tile-subtitle">Past searches</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Investigations Feed Header & Stats */}
+                <div className="section-header-row">
+                  <div>
+                    <h2 className="section-heading">Recent Investigations</h2>
+                    <p className="section-subheading">Showing latest research outputs</p>
+                  </div>
+                  <button className="view-all-link" onClick={() => switchTab("archive")}>
+                    View all →
+                  </button>
+                </div>
+
+                {/* Aggregate Stat Cards */}
+                <div className="stat-cards-grid">
+                  <div className="stat-card">
+                    <div className="stat-card-icon icon-briefs-stat">
+                      <IconPaper />
+                    </div>
+                    <div className="stat-card-content">
+                      <span className="stat-card-value">{briefs.length} Briefs</span>
+                      <span className="stat-card-label">Total researched</span>
+                    </div>
+                  </div>
+
+                  <div className="stat-card">
+                    <div className="stat-card-icon icon-coins-stat">
+                      <IconCoins />
+                    </div>
+                    <div className="stat-card-content">
+                      <span className="stat-card-value">${totalSpend.toFixed(3)}</span>
+                      <span className="stat-card-label">Total Spend</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Feed Cards List */}
+                {loading && <div className="loading-state">Searching research archive…</div>}
+
+                {!loading && briefs.length === 0 && !error && (
+                  <div className="empty-state-card">
+                    <p className="empty-title">No investigations found</p>
+                    <p className="empty-desc">
+                      Send a research topic to Hermes to populate your Bugle archive.
+                    </p>
+                  </div>
+                )}
+
+                <ul className="briefs-feed-list">
+                  {briefs.map((b, idx) => renderBriefCard(b, idx))}
+                </ul>
+              </section>
+            )}
+
+            {/* TAB: SEARCH */}
+            {activeTab === "search" && (
+              <section className="search-tab-view">
+                <div className="search-section">
+                  <div className="search-input-wrapper">
+                    <span className="search-icon">
+                      <IconSearch />
+                    </span>
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      className="search-input"
+                      placeholder="Search across all investigations..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                      <button className="search-clear-btn" onClick={() => setSearch("")}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Suggestion Chips */}
+                  <div className="suggestion-chips-row">
+                    <span className="suggestion-label">Suggested:</span>
+                    {SUGGESTIONS.map((s) => (
+                      <button
+                        key={s}
+                        className={`chip-button ${search.toLowerCase() === s.toLowerCase() ? "active" : ""}`}
+                        onClick={() => {
+                          setSearch(s);
+                          recordSearch(s);
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recent Searches history */}
+                {recentSearches.length > 0 && !search && (
+                  <div className="recent-searches-box">
+                    <div className="recent-searches-header">
+                      <span className="recent-searches-title">Recent Searches</span>
+                      <button
+                        className="clear-history-btn"
+                        onClick={() => {
+                          setRecentSearches([]);
+                          localStorage.removeItem("bugle_recent_searches");
+                        }}
+                      >
+                        Clear history
+                      </button>
+                    </div>
+                    <div className="recent-chips-list">
+                      {recentSearches.map((term) => (
+                        <button
+                          key={term}
+                          className="recent-term-chip"
+                          onClick={() => setSearch(term)}
+                        >
+                          <IconHistory className="recent-icon" /> {term}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Results */}
+                <div className="section-header-row">
+                  <div>
+                    <h2 className="section-heading">
+                      {search ? `Search Results for "${search}"` : "All Investigations"}
+                    </h2>
+                    <p className="section-subheading">{briefs.length} briefs matching criteria</p>
+                  </div>
+                </div>
+
+                {loading && <div className="loading-state">Searching…</div>}
+
+                {!loading && briefs.length === 0 && (
+                  <div className="empty-state-card">
+                    <p className="empty-title">No matching investigations</p>
+                    <p className="empty-desc">
+                      Try adjusting your keywords or clearing the search query.
+                    </p>
+                  </div>
+                )}
+
+                <ul className="briefs-feed-list">
+                  {briefs.map((b, idx) => renderBriefCard(b, idx))}
+                </ul>
+              </section>
+            )}
+
+            {/* TAB: SAVED BOOKMARKS */}
+            {activeTab === "saved" && (
+              <section className="saved-tab-view">
+                <div className="section-header-row">
+                  <div>
+                    <h2 className="section-heading">Saved Bookmarks</h2>
+                    <p className="section-subheading">
+                      {savedBriefs.length} bookmarked {savedBriefs.length === 1 ? "investigation" : "investigations"}
+                    </p>
+                  </div>
+                </div>
+
+                {savedBriefs.length === 0 ? (
+                  <div className="empty-state-card">
+                    <div className="empty-icon-gold">
+                      <IconStar filled={false} />
+                    </div>
+                    <p className="empty-title">No saved bookmarks yet</p>
+                    <p className="empty-desc">
+                      Tap the star icon on any research brief to save it here for offline reading or quick reference.
+                    </p>
+                    <button className="btn-secondary" onClick={() => switchTab("home")}>
+                      Explore Investigations
+                    </button>
+                  </div>
+                ) : (
+                  <ul className="briefs-feed-list">
+                    {savedBriefs.map((b, idx) => renderBriefCard(b, idx))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {/* TAB: ARCHIVE */}
+            {activeTab === "archive" && (
+              <section className="archive-tab-view">
+                <div className="section-header-row">
+                  <div>
+                    <h2 className="section-heading">Research Archive</h2>
+                    <p className="section-subheading">
+                      Comprehensive catalogue · {archiveBriefs.length} records · ${totalSpend.toFixed(3)} spent
+                    </p>
+                  </div>
+                </div>
+
+                {/* Category taxonomy pills */}
+                <div className="category-filter-bar">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      className={`cat-filter-btn ${archiveCategory === cat ? "active" : ""}`}
+                      onClick={() => setArchiveCategory(cat)}
+                    >
+                      {cat === "all" ? "All Categories" : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {archiveBriefs.length === 0 ? (
+                  <div className="empty-state-card">
+                    <p className="empty-title">No briefs in category</p>
+                    <p className="empty-desc">Try choosing another category or clearing filters.</p>
+                  </div>
+                ) : (
+                  <ul className="briefs-feed-list">
+                    {archiveBriefs.map((b, idx) => renderBriefCard(b, idx))}
+                  </ul>
+                )}
+              </section>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Persistent Mobile Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
+        <button
+          className={`bottom-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("home")}
+          aria-label="Home"
+        >
+          <IconHome className="nav-svg" />
+          <span className="nav-label">Home</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("search")}
+          aria-label="Search"
+        >
+          <IconSearch className="nav-svg" />
+          <span className="nav-label">Search</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("saved")}
+          aria-label="Saved"
+        >
+          <div className="nav-icon-wrapper">
+            <IconStar filled={activeTab === "saved"} className="nav-svg" />
+            {savedIds.length > 0 && <span className="nav-badge-count">{savedIds.length}</span>}
+          </div>
+          <span className="nav-label">Saved</span>
+        </button>
+
+        <button
+          className={`bottom-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("archive")}
+          aria-label="Archive"
+        >
+          <IconArchive className="nav-svg" />
+          <span className="nav-label">Archive</span>
+        </button>
+      </nav>
+    </div>
   );
 }
