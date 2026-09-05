@@ -293,32 +293,20 @@ export default function App() {
   });
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const modalSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
-  // Keyboard shortcut listener: ⌘ K to open Search Modal, Escape to close
+  // Keyboard shortcut listener: ⌘ K to jump to Search Tab, Escape to close profile menu
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setIsSearchModalOpen((prev) => !prev);
+        switchTab("search");
       } else if (e.key === "Escape") {
-        setIsSearchModalOpen(false);
         setShowProfileMenu(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  // Focus modal input on open
-  useEffect(() => {
-    if (isSearchModalOpen) {
-      setTimeout(() => {
-        modalSearchInputRef.current?.focus();
-      }, 100);
-    }
-  }, [isSearchModalOpen]);
 
   // Persist saved IDs
   useEffect(() => {
@@ -489,6 +477,8 @@ export default function App() {
   };
 
   const switchTab = (tab: TabType) => {
+    setCurrentBriefId(null);
+    setCurrentBrief(null);
     setActiveTab(tab);
     if (tab === "home") {
       window.location.hash = "";
@@ -852,7 +842,7 @@ export default function App() {
                       className="profile-nav-action-btn"
                       onClick={() => {
                         setShowProfileMenu(false);
-                        setIsSearchModalOpen(true);
+                        switchTab("search");
                       }}
                     >
                       <IconSearch className="action-icon" /> Search Topics & Tags
@@ -1332,8 +1322,16 @@ export default function App() {
             {/* TAB: SEARCH */}
             {activeTab === "search" && (
               <section className="search-tab-view">
-                <div className="search-section">
-                  <div className="search-input-wrapper">
+                <div className="search-tab-header">
+                  <div className="search-header-text">
+                    <h2 className="section-heading">Search & Explore</h2>
+                    <p className="section-subheading">
+                      Explore curated topics, claims, tags, and synthesized research briefs
+                    </p>
+                  </div>
+
+                  {/* Compact Sleek Search Input */}
+                  <div className="search-input-wrapper compact-search-bar">
                     <span className="search-icon">
                       <IconSearch />
                     </span>
@@ -1341,82 +1339,119 @@ export default function App() {
                       ref={searchInputRef}
                       type="text"
                       className="search-input"
-                      placeholder="Search across all investigations..."
+                      placeholder="Search keywords, topics, claims..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && search.trim()) {
+                          recordSearch(search.trim());
+                        }
+                      }}
                     />
-                    {search && (
-                      <button className="search-clear-btn" onClick={() => setSearch("")}>
+                    {search ? (
+                      <button
+                        className="search-clear-btn"
+                        onClick={() => setSearch("")}
+                        aria-label="Clear search"
+                        title="Clear search"
+                      >
                         ✕
                       </button>
+                    ) : (
+                      <span className="search-kbd-chip">⌘ K</span>
                     )}
                   </div>
 
-                  {/* Suggestion Chips */}
-                  <div className="suggestion-chips-row">
-                    <span className="suggestion-label">Suggested:</span>
-                    {SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        className={`chip-button ${search.toLowerCase() === s.toLowerCase() ? "active" : ""}`}
-                        onClick={() => {
-                          setSearch(s);
-                          recordSearch(s);
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recent Searches history */}
-                {recentSearches.length > 0 && !search && (
-                  <div className="recent-searches-box">
-                    <div className="recent-searches-header">
-                      <span className="recent-searches-title">Recent Searches</span>
-                      <button
-                        className="clear-history-btn"
-                        onClick={() => {
-                          setRecentSearches([]);
-                          localStorage.removeItem("bugle_recent_searches");
-                        }}
-                      >
-                        Clear history
-                      </button>
+                  {/* Topic & Tag Filter Chips */}
+                  <div className="search-topics-bar">
+                    <span className="search-topics-label">Browse Topics:</span>
+                    <div className="search-topics-chips">
+                      {allTopics.map((tag) => {
+                        const isSelected = search.toLowerCase() === tag.toLowerCase();
+                        return (
+                          <button
+                            key={tag}
+                            className={`search-topic-chip ${isSelected ? "active" : ""}`}
+                            onClick={() => {
+                              const nextVal = isSelected ? "" : tag;
+                              setSearch(nextVal);
+                              if (nextVal) recordSearch(nextVal);
+                            }}
+                          >
+                            #{tag}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="recent-chips-list">
-                      {recentSearches.map((term) => (
+                  </div>
+
+                  {/* Recent Searches Strip */}
+                  {recentSearches.length > 0 && !search && (
+                    <div className="search-recent-strip">
+                      <div className="recent-strip-header">
+                        <span className="recent-strip-label">
+                          <IconHistory className="recent-strip-icon" /> Recent:
+                        </span>
                         <button
-                          key={term}
-                          className="recent-term-chip"
-                          onClick={() => setSearch(term)}
+                          className="clear-history-link"
+                          onClick={() => {
+                            setRecentSearches([]);
+                            localStorage.removeItem("bugle_recent_searches");
+                          }}
                         >
-                          <IconHistory className="recent-icon" /> {term}
+                          Clear
                         </button>
-                      ))}
+                      </div>
+                      <div className="recent-strip-chips">
+                        {recentSearches.map((term) => (
+                          <button
+                            key={term}
+                            className="recent-strip-chip"
+                            onClick={() => {
+                              setSearch(term);
+                              recordSearch(term);
+                            }}
+                          >
+                            {term}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Search Results */}
-                <div className="section-header-row">
-                  <div>
-                    <h2 className="section-heading">
-                      {search ? `Search Results for "${search}"` : "All Investigations"}
-                    </h2>
-                    <p className="section-subheading">{briefs.length} briefs matching criteria</p>
-                  </div>
+                  )}
                 </div>
 
-                {loading && <div className="loading-state">Searching…</div>}
+                {/* Results Status & Count Bar */}
+                <div className="search-results-bar">
+                  <span className="search-results-count">
+                    {search ? (
+                      <>
+                        Showing investigations for <strong>"{search}"</strong> ({briefs.length}{" "}
+                        {briefs.length === 1 ? "brief" : "briefs"})
+                      </>
+                    ) : (
+                      <>All Investigations ({briefs.length})</>
+                    )}
+                  </span>
+                  {search && (
+                    <button className="reset-search-link" onClick={() => setSearch("")}>
+                      Reset search
+                    </button>
+                  )}
+                </div>
+
+                {loading && <div className="loading-state">Searching research archive…</div>}
 
                 {!loading && briefs.length === 0 && (
                   <div className="empty-state-card">
                     <p className="empty-title">No matching investigations</p>
                     <p className="empty-desc">
-                      Try adjusting your keywords or clearing the search query.
+                      Try adjusting your keywords, tapping a topic chip above, or resetting the search.
                     </p>
+                    {search && (
+                      <button className="btn-secondary" onClick={() => setSearch("")}>
+                        Clear search
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -1501,203 +1536,47 @@ export default function App() {
       </main>
     </div>
 
-    {/* Search & Topic Exploration Modal Sheet (Mobile Bottom-Nav & ⌘ K) */}
-    {isSearchModalOpen && (
-      <div className="search-modal-overlay" onClick={() => setIsSearchModalOpen(false)}>
-        <div
-          className="search-modal-sheet"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Search and Explore Investigations"
+      {/* Persistent Mobile Bottom Navigation Bar */}
+      <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
+        <button
+          className={`bottom-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("home")}
+          aria-label="Home"
         >
-          <div className="modal-header">
-            <div className="modal-title-row">
-              <h3 className="modal-title">Search & Explore</h3>
-              <button
-                className="modal-close-btn"
-                onClick={() => setIsSearchModalOpen(false)}
-                aria-label="Close search"
-              >
-                ✕
-              </button>
-            </div>
+          <IconHome className="nav-svg" />
+          <span className="nav-label">Home</span>
+        </button>
 
-            {/* Search input field */}
-            <div className="modal-search-wrapper">
-              <span className="modal-search-icon">
-                <IconSearch />
-              </span>
-              <input
-                ref={modalSearchInputRef}
-                type="text"
-                className="modal-search-input"
-                placeholder="Search keywords, topics, claims..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search && (
-                <button className="search-clear-btn" onClick={() => setSearch("")}>
-                  ✕
-                </button>
-              )}
-            </div>
+        <button
+          className={`bottom-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("search")}
+          aria-label="Search"
+        >
+          <IconSearch className="nav-svg" />
+          <span className="nav-label">Search</span>
+        </button>
 
-            {/* Topic & Tag Pills */}
-            <div className="modal-topics-section">
-              <span className="modal-section-label">Browse Topics:</span>
-              <div className="modal-tags-row">
-                {allTopics.map((tag) => {
-                  const isSelected = search.toLowerCase() === tag.toLowerCase();
-                  return (
-                    <button
-                      key={tag}
-                      className={`modal-tag-chip ${isSelected ? "active" : ""}`}
-                      onClick={() => {
-                        const nextVal = isSelected ? "" : tag;
-                        setSearch(nextVal);
-                        if (nextVal) recordSearch(nextVal);
-                      }}
-                    >
-                      #{tag}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Recent Searches */}
-            {recentSearches.length > 0 && !search && (
-              <div className="modal-recent-section">
-                <div className="modal-recent-header">
-                  <span className="modal-section-label">Recent Searches</span>
-                  <button
-                    className="clear-history-btn"
-                    onClick={() => {
-                      setRecentSearches([]);
-                      localStorage.removeItem("bugle_recent_searches");
-                    }}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="modal-recent-chips">
-                  {recentSearches.map((term) => (
-                    <button
-                      key={term}
-                      className="recent-term-chip"
-                      onClick={() => {
-                        setSearch(term);
-                        recordSearch(term);
-                      }}
-                    >
-                      <IconHistory className="recent-icon" /> {term}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        <button
+          className={`bottom-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("saved")}
+          aria-label="Saved"
+        >
+          <div className="nav-icon-wrapper">
+            <IconStar filled={activeTab === "saved"} className="nav-svg" />
+            {savedIds.length > 0 && <span className="nav-badge-count">{savedIds.length}</span>}
           </div>
+          <span className="nav-label">Saved</span>
+        </button>
 
-          {/* Live Search Results List */}
-          <div className="modal-results-container">
-            <div className="modal-results-header">
-              <span className="modal-results-count">
-                {search ? `Results for "${search}" (${briefs.length})` : `All Investigations (${briefs.length})`}
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="loading-state">Searching archive…</div>
-            ) : briefs.length === 0 ? (
-              <div className="empty-state-card">
-                <p className="empty-title">No matching investigations</p>
-                <p className="empty-desc">Try another keyword or select a topic chip above.</p>
-              </div>
-            ) : (
-              <div className="modal-results-list">
-                {briefs.map((b) => (
-                  <div
-                    key={b.id}
-                    className="modal-result-item"
-                    onClick={() => {
-                      setIsSearchModalOpen(false);
-                      openBrief(b.id);
-                    }}
-                  >
-                    <div className="modal-item-top">
-                      <span className="blog-tag-badge">{b.category}</span>
-                      <span className="modal-item-time">{formatRelativeTime(b.published_at)}</span>
-                      {b.cost_usd !== null && b.cost_usd !== undefined && (
-                        <span className="modal-item-cost">${formatCost(b.cost_usd)}</span>
-                      )}
-                    </div>
-                    <h4 className="modal-item-title">{b.title}</h4>
-                    {b.summary && (
-                      <p className="modal-item-summary">{b.summary}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Persistent Mobile Bottom Navigation Bar */}
-    <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
-      <button
-        className={`bottom-nav-item ${activeTab === "home" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
-        onClick={() => {
-          setIsSearchModalOpen(false);
-          switchTab("home");
-        }}
-        aria-label="Home"
-      >
-        <IconHome className="nav-svg" />
-        <span className="nav-label">Home</span>
-      </button>
-
-      <button
-        className={`bottom-nav-item ${isSearchModalOpen ? "active" : ""}`}
-        onClick={() => {
-          setIsSearchModalOpen(true);
-          setTimeout(() => modalSearchInputRef.current?.focus(), 80);
-        }}
-        aria-label="Search"
-      >
-        <IconSearch className="nav-svg" />
-        <span className="nav-label">Search</span>
-      </button>
-
-      <button
-        className={`bottom-nav-item ${activeTab === "saved" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
-        onClick={() => {
-          setIsSearchModalOpen(false);
-          switchTab("saved");
-        }}
-        aria-label="Saved"
-      >
-        <div className="nav-icon-wrapper">
-          <IconStar filled={activeTab === "saved"} className="nav-svg" />
-          {savedIds.length > 0 && <span className="nav-badge-count">{savedIds.length}</span>}
-        </div>
-        <span className="nav-label">Saved</span>
-      </button>
-
-      <button
-        className={`bottom-nav-item ${activeTab === "archive" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
-        onClick={() => {
-          setIsSearchModalOpen(false);
-          switchTab("archive");
-        }}
-        aria-label="Archive"
-      >
-        <IconArchive className="nav-svg" />
-        <span className="nav-label">Archive</span>
-      </button>
-    </nav>
-  </div>
+        <button
+          className={`bottom-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
+          onClick={() => switchTab("archive")}
+          aria-label="Archive"
+        >
+          <IconArchive className="nav-svg" />
+          <span className="nav-label">Archive</span>
+        </button>
+      </nav>
+    </div>
 );
 }
