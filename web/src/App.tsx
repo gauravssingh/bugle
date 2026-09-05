@@ -520,19 +520,76 @@ export default function App() {
     return briefs.filter((b) => b.category.toLowerCase() === archiveCategory.toLowerCase());
   }, [briefs, archiveCategory]);
 
-  const allTopics = useMemo(() => {
-    const curated = ["AI", "productivity", "markets", "climate", "semiconductor", "governance", "deep learning"];
-    const set = new Set<string>(curated);
+  // Top 5-6 topics ranked strictly by frequency across briefs
+  const topTopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    const displayMap = new Map<string, string>();
+    const ignore = new Set([
+      "general",
+      "archived",
+      "legacy",
+      "integration-test",
+      "x-ingest",
+      "legacy-import",
+      "all",
+    ]);
+
     briefs.forEach((b) => {
-      if (b.category && b.category.toLowerCase() !== "general") set.add(b.category);
-      if (b.subcategory) set.add(b.subcategory);
+      // Subcategory has high semantic topic signal (weight: 3)
+      if (b.subcategory && !ignore.has(b.subcategory.toLowerCase())) {
+        const key = b.subcategory.toLowerCase();
+        counts.set(key, (counts.get(key) || 0) + 3);
+        if (!displayMap.has(key)) displayMap.set(key, b.subcategory);
+      }
+
+      // Tags (weight: 1)
       if (Array.isArray(b.tags)) {
         b.tags.forEach((t) => {
-          if (t && t.length < 24) set.add(t);
+          const trimmed = t?.trim();
+          if (trimmed && !ignore.has(trimmed.toLowerCase()) && trimmed.length < 24) {
+            const key = trimmed.toLowerCase();
+            counts.set(key, (counts.get(key) || 0) + 1);
+            if (!displayMap.has(key)) displayMap.set(key, trimmed);
+          }
         });
       }
+
+      // Category if specific (weight: 1)
+      if (b.category && !ignore.has(b.category.toLowerCase())) {
+        const key = b.category.toLowerCase();
+        counts.set(key, (counts.get(key) || 0) + 1);
+        if (!displayMap.has(key)) displayMap.set(key, b.category);
+      }
     });
-    return Array.from(set);
+
+    // Default curated fallbacks if archive is empty or has few topics
+    const fallbackCurated = ["AI", "Agents", "Productivity", "Deep Learning", "Markets", "Governance"];
+
+    // Sort existing keys by frequency descending
+    const sorted = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([k]) => displayMap.get(k) || k);
+
+    const result: string[] = [];
+    for (const item of sorted) {
+      if (!result.some((r) => r.toLowerCase() === item.toLowerCase())) {
+        result.push(item);
+        if (result.length >= 6) break;
+      }
+    }
+
+    // Fill up to at least 5 if needed from fallbacks
+    if (result.length < 5) {
+      for (const fallback of fallbackCurated) {
+        if (!result.some((r) => r.toLowerCase() === fallback.toLowerCase())) {
+          result.push(fallback);
+          if (result.length >= 6) break;
+        }
+      }
+    }
+
+    // Strictly limit to 5-6 max
+    return result.slice(0, 6);
   }, [briefs]);
 
   const handleShare = (b: BriefSummary) => {
@@ -1362,11 +1419,11 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Topic & Tag Filter Chips */}
+                  {/* Topic & Tag Filter Chips (5-6 max ranked by frequency) */}
                   <div className="search-topics-bar">
-                    <span className="search-topics-label">Browse Topics:</span>
+                    <span className="search-topics-label">Top Topics:</span>
                     <div className="search-topics-chips">
-                      {allTopics.map((tag) => {
+                      {topTopics.map((tag) => {
                         const isSelected = search.toLowerCase() === tag.toLowerCase();
                         return (
                           <button
@@ -1422,19 +1479,31 @@ export default function App() {
 
                 {/* Results Status & Count Bar */}
                 <div className="search-results-bar">
-                  <span className="search-results-count">
+                  <div className="search-results-count">
                     {search ? (
                       <>
-                        Showing investigations for <strong>"{search}"</strong> ({briefs.length}{" "}
-                        {briefs.length === 1 ? "brief" : "briefs"})
+                        <span className="results-query-label">
+                          Results for <strong>"{search}"</strong>
+                        </span>
+                        <span className="results-badge-count">
+                          {briefs.length} {briefs.length === 1 ? "brief" : "briefs"}
+                        </span>
                       </>
                     ) : (
-                      <>All Investigations ({briefs.length})</>
+                      <>
+                        <span className="results-query-label">All Investigations</span>
+                        <span className="results-badge-count">{briefs.length}</span>
+                      </>
                     )}
-                  </span>
+                  </div>
                   {search && (
-                    <button className="reset-search-link" onClick={() => setSearch("")}>
-                      Reset search
+                    <button
+                      className="reset-search-btn"
+                      onClick={() => setSearch("")}
+                      title="Reset search filter"
+                      aria-label="Reset search filter"
+                    >
+                      ✕ Reset search
                     </button>
                   )}
                 </div>

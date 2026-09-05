@@ -165,14 +165,15 @@ The search experience uses a **dedicated full-page tab** rather than a modal pop
    - Streamlined 42px height.
    - Magnifying glass icon, clear button (`✕`), and desktop keyboard hint (`⌘ K`).
    - Automatically focuses input on entry.
-2. **Horizontal Topic Chips (`.search-topics-bar`)**:
-   - Curated & dynamic tags (`#AI`, `#productivity`, `#markets`, `#deep learning`, `#governance`).
+2. **Top Topic Chips (`.search-topics-bar`)**:
+   - Ranked strictly by occurrence frequency across investigations (capped at 5–6 topics max to prevent clutter).
    - Tapping any chip immediately filters the live archive and updates the URL.
 3. **Recent Search Strip (`.search-recent-strip`)**:
    - Compact inline strip displaying recent search queries.
    - One-tap "Clear" affordance synced to `localStorage`.
-4. **Live Results Count & Reset Filter Bar**:
-   - Displays total matches and a direct "Reset search" link.
+4. **Live Results Count & Reset Filter Bar (`.search-results-bar`)**:
+   - Displays search term, match count badge, and a responsive bounded pill button (`.reset-search-btn`).
+   - Flex-wrapping and word-break rules prevent overflow outside the UI viewport on mobile.
 
 ---
 
