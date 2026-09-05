@@ -595,69 +595,211 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <main className="wrap">
-        {/* Compact App Header with Operator Profile Avatar */}
-        <header className="mobile-header">
-          <div className="header-brand">
-            <div className="brand-title-group">
-              <h1 className="brand-logo">
-                <a href="#" onClick={goHome} className="brand-link">
-                  🎺 Bugle
-                </a>
-              </h1>
-              <span className="brand-badge">Research</span>
+      {/* Persistent Desktop Sidebar (Visible on desktop >= 900px) */}
+      <aside className="desktop-sidebar" aria-label="Desktop Navigation">
+        <div className="sidebar-top">
+          <div className="sidebar-brand">
+            <a href="#" onClick={goHome} className="sidebar-logo-link">
+              <span className="sidebar-brand-icon">🎺</span>
+              <span className="sidebar-brand-title">Bugle</span>
+            </a>
+            <span className="brand-badge">Research</span>
+          </div>
+          <p className="sidebar-tagline">Autonomous Research Intelligence</p>
+        </div>
+
+        <nav className="sidebar-nav">
+          <button
+            className={`sidebar-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
+            onClick={() => switchTab("home")}
+          >
+            <IconHome className="sidebar-nav-icon" />
+            <span className="sidebar-nav-label">Home & Feed</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
+            onClick={() => switchTab("search")}
+          >
+            <IconSearch className="sidebar-nav-icon" />
+            <span className="sidebar-nav-label">Search Archive</span>
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
+            onClick={() => switchTab("saved")}
+          >
+            <div className="sidebar-icon-wrap">
+              <IconStar filled={activeTab === "saved"} className="sidebar-nav-icon" />
             </div>
-            <p className="brand-tagline">Autonomous Research Intelligence</p>
+            <span className="sidebar-nav-label">Saved Bookmarks</span>
+            {savedIds.length > 0 && <span className="sidebar-badge-pill">{savedIds.length}</span>}
+          </button>
+
+          <button
+            className={`sidebar-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
+            onClick={() => switchTab("archive")}
+          >
+            <IconArchive className="sidebar-nav-icon" />
+            <span className="sidebar-nav-label">Full Catalogue</span>
+            <span className="sidebar-badge-muted">{briefs.length}</span>
+          </button>
+        </nav>
+
+        {/* Sidebar Topics Taxonomy */}
+        <div className="sidebar-section">
+          <span className="sidebar-section-title">Explore Topics</span>
+          <div className="sidebar-topics-grid">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className={`sidebar-topic-btn ${activeTab === "archive" && archiveCategory === cat ? "active" : ""}`}
+                onClick={() => {
+                  setArchiveCategory(cat);
+                  switchTab("archive");
+                }}
+              >
+                {cat === "all" ? "All Topics" : cat}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="header-actions" ref={profileRef}>
-            <button
-              className={`operator-avatar-btn ${showProfileMenu ? "active" : ""}`}
-              onClick={() => setShowProfileMenu((prev) => !prev)}
-              aria-label={`Operator profile: ${operatorEmail}`}
-              title={`Operator: ${operatorEmail} (${auth?.is_admin ? "Admin" : "Public"})`}
-            >
-              <span className="avatar-initials">{operatorInitials}</span>
-              <span className="avatar-status-dot online" />
-            </button>
+        {/* Sidebar System & Intelligence Metrics */}
+        <div className="sidebar-status-box">
+          <div className="sidebar-status-row">
+            <span className="status-dot online" />
+            <span className="sidebar-status-engine">Hermes Core Online</span>
+          </div>
+          <div className="sidebar-metrics-row">
+            <div className="sidebar-metric-item">
+              <span className="sidebar-metric-label">Spend</span>
+              <span className="sidebar-metric-val highlight-gold">${totalSpend.toFixed(3)}</span>
+            </div>
+            <div className="sidebar-metric-divider" />
+            <div className="sidebar-metric-item">
+              <span className="sidebar-metric-label">Briefs</span>
+              <span className="sidebar-metric-val">{briefs.length}</span>
+            </div>
+          </div>
+        </div>
 
-            {showProfileMenu && (
-              <div className="profile-dropdown-card">
-                <div className="profile-dropdown-header">
-                  <div className="dropdown-avatar">{operatorInitials}</div>
-                  <div className="dropdown-meta">
-                    <span className="dropdown-email" title={operatorEmail}>
-                      {operatorEmail}
-                    </span>
-                    <span className="dropdown-role">
-                      <span className="status-dot online" />
-                      {auth?.is_admin ? "Operator (Admin)" : "Public View"}
-                    </span>
-                  </div>
-                </div>
-                <div className="profile-dropdown-body">
-                  <div className="dropdown-row">
-                    <span className="dropdown-label">Engine</span>
-                    <span className="dropdown-val">Hermes Agentic Core</span>
-                  </div>
-                  <div className="dropdown-row">
-                    <span className="dropdown-label">Investigations</span>
-                    <span className="dropdown-val">{briefs.length} briefs</span>
-                  </div>
-                  <div className="dropdown-row">
-                    <span className="dropdown-label">Total Spend</span>
-                    <span className="dropdown-val highlight-gold">${totalSpend.toFixed(3)}</span>
-                  </div>
-                </div>
-                <div className="profile-dropdown-footer">
-                  <span>Signed in via Cloudflare Access</span>
-                </div>
+        {/* Sidebar Operator Profile Footer */}
+        <div className="sidebar-profile-footer">
+          <div className="sidebar-avatar">{operatorInitials}</div>
+          <div className="sidebar-operator-details">
+            <span className="sidebar-operator-name" title={operatorEmail}>
+              {operatorEmail}
+            </span>
+            <span className="sidebar-operator-status">
+              <span className="status-dot online" />
+              {auth?.is_admin ? "Operator (Admin)" : "Public View"}
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="app-main-area">
+        <main className="wrap">
+          {/* Mobile Header (visible on mobile < 900px, hidden on desktop) */}
+          <header className="mobile-header">
+            <div className="header-brand">
+              <div className="brand-title-group">
+                <h1 className="brand-logo">
+                  <a href="#" onClick={goHome} className="brand-link">
+                    🎺 Bugle
+                  </a>
+                </h1>
+                <span className="brand-badge">Research</span>
               </div>
-            )}
-          </div>
-        </header>
+              <p className="brand-tagline">Autonomous Research Intelligence</p>
+            </div>
 
-        {error && <div className="error-banner">{error}</div>}
+            <div className="header-actions" ref={profileRef}>
+              <button
+                className={`operator-avatar-btn ${showProfileMenu ? "active" : ""}`}
+                onClick={() => setShowProfileMenu((prev) => !prev)}
+                aria-label={`Operator profile: ${operatorEmail}`}
+                title={`Operator: ${operatorEmail} (${auth?.is_admin ? "Admin" : "Public"})`}
+              >
+                <span className="avatar-initials">{operatorInitials}</span>
+                <span className="avatar-status-dot online" />
+              </button>
+
+              {showProfileMenu && (
+                <div className="profile-dropdown-card">
+                  <div className="profile-dropdown-header">
+                    <div className="dropdown-avatar">{operatorInitials}</div>
+                    <div className="dropdown-meta">
+                      <span className="dropdown-email" title={operatorEmail}>
+                        {operatorEmail}
+                      </span>
+                      <span className="dropdown-role">
+                        <span className="status-dot online" />
+                        {auth?.is_admin ? "Operator (Admin)" : "Public View"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="profile-dropdown-body">
+                    <div className="dropdown-row">
+                      <span className="dropdown-label">Engine</span>
+                      <span className="dropdown-val">Hermes Agentic Core</span>
+                    </div>
+                    <div className="dropdown-row">
+                      <span className="dropdown-label">Investigations</span>
+                      <span className="dropdown-val">{briefs.length} briefs</span>
+                    </div>
+                    <div className="dropdown-row">
+                      <span className="dropdown-label">Total Spend</span>
+                      <span className="dropdown-val highlight-gold">${totalSpend.toFixed(3)}</span>
+                    </div>
+                  </div>
+                  <div className="profile-dropdown-footer">
+                    <span>Signed in via Cloudflare Access</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Desktop Top Header Bar (visible on desktop >= 900px) */}
+          <div className="desktop-top-bar">
+            <div className="desktop-page-info">
+              <h2 className="desktop-page-title">
+                {currentBriefId
+                  ? "Research Investigation"
+                  : activeTab === "home"
+                  ? "Intelligence Feed"
+                  : activeTab === "search"
+                  ? "Archive Search"
+                  : activeTab === "saved"
+                  ? "Saved Bookmarks"
+                  : "Research Catalogue"}
+              </h2>
+              <p className="desktop-page-desc">
+                {currentBriefId
+                  ? "Detailed evidence synthesis and claims verification audit"
+                  : activeTab === "home"
+                  ? "Latest autonomous research briefs synthesized by Hermes engine"
+                  : activeTab === "search"
+                  ? "Semantic keyword and taxonomy discovery across all investigations"
+                  : activeTab === "saved"
+                  ? "Your saved investigations bookmarked for quick reference"
+                  : "Comprehensive archive catalogued by category domain"}
+              </p>
+            </div>
+
+            <div className="desktop-top-actions">
+              <div className="desktop-auth-chip" title={`Authenticated as ${operatorEmail}`}>
+                <span className="status-dot online" />
+                <span className="desktop-user-email">{operatorEmail}</span>
+                <span className="desktop-user-badge">{auth?.is_admin ? "Operator" : "Public"}</span>
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="error-banner">{error}</div>}
 
         {/* VIEW: Single Brief Detail */}
         {currentBriefId ? (
@@ -680,221 +822,230 @@ export default function App() {
             {loading && <div className="loading-state">Loading research brief…</div>}
 
             {currentBrief && (
-              <>
-                <header className="detail-header">
-                  <div className="badge-row">
-                    {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
-                      <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
-                        💰 {formatCost(currentBrief.cost_usd)}
+              <div className="detail-layout">
+                {/* Left Column: Reading Synthesis & Full Markdown */}
+                <div className="detail-main-column">
+                  <header className="detail-header">
+                    <div className="badge-row">
+                      {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                        <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
+                          💰 {formatCost(currentBrief.cost_usd)}
+                        </span>
+                      )}
+                      {currentBrief.duration_seconds && (
+                        <span className="badge badge-duration" title={`Duration: ${currentBrief.duration_seconds}s`}>
+                          ⏱️ {formatDuration(currentBrief.duration_seconds)}
+                        </span>
+                      )}
+                      {currentBrief.model && (
+                        <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
+                          ⚡ {formatModel(currentBrief.model)}
+                        </span>
+                      )}
+                      <span className="badge badge-category">
+                        {currentBrief.category}
+                        {currentBrief.subcategory ? ` / ${currentBrief.subcategory}` : ""}
                       </span>
-                    )}
-                    {currentBrief.duration_seconds && (
-                      <span className="badge badge-duration" title={`Duration: ${currentBrief.duration_seconds}s`}>
-                        ⏱️ {formatDuration(currentBrief.duration_seconds)}
+                      <span className={`badge badge-depth-${currentBrief.research_depth}`}>
+                        {currentBrief.research_depth} Depth
                       </span>
-                    )}
-                    {currentBrief.model && (
-                      <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
-                        ⚡ {formatModel(currentBrief.model)}
+                      <span className="badge badge-category">
+                        {currentBrief.confidence} Confidence
                       </span>
-                    )}
-                    <span className="badge badge-category">
-                      {currentBrief.category}
-                      {currentBrief.subcategory ? ` / ${currentBrief.subcategory}` : ""}
-                    </span>
-                    <span className={`badge badge-depth-${currentBrief.research_depth}`}>
-                      {currentBrief.research_depth} Depth
-                    </span>
-                    <span className="badge badge-category">
-                      {currentBrief.confidence} Confidence
-                    </span>
-                    <span className={`badge badge-${currentBrief.visibility}`}>
-                      {currentBrief.visibility === "private" ? "🔒 Private" : "🌐 Public"}
-                    </span>
-                  </div>
+                      <span className={`badge badge-${currentBrief.visibility}`}>
+                        {currentBrief.visibility === "private" ? "🔒 Private" : "🌐 Public"}
+                      </span>
+                    </div>
 
-                  <h2 className="detail-title">{currentBrief.title}</h2>
-                </header>
+                    <h2 className="detail-title">{currentBrief.title}</h2>
+                  </header>
 
-                {/* Provenance Metadata Bar */}
-                <section className="provenance-card">
-                  <div className="provenance-item">
-                    <span className="provenance-label">Research Type</span>
-                    <span className="provenance-value">{currentBrief.research_type}</span>
-                  </div>
-                  <div className="provenance-item">
-                    <span className="provenance-label">Evidence Base</span>
-                    <span className="provenance-value">
-                      {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
-                    </span>
-                  </div>
-                  {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
-                    <div className="provenance-item">
-                      <span className="provenance-label">Generation Cost</span>
-                      <span className="provenance-value highlight-success">
-                        💰 ${currentBrief.cost_usd.toFixed(4)} USD
-                      </span>
-                    </div>
+                  {/* Executive Summary Callout */}
+                  {currentBrief.summary && (
+                    <section className="executive-summary-box">
+                      <div className="summary-heading">Executive Synthesis</div>
+                      <p className="summary-text">{currentBrief.summary}</p>
+                    </section>
                   )}
-                  {currentBrief.duration_seconds && (
-                    <div className="provenance-item">
-                      <span className="provenance-label">Duration</span>
-                      <span className="provenance-value">
-                        ⏱️ {formatDuration(currentBrief.duration_seconds)} ({currentBrief.duration_seconds}s)
-                      </span>
-                    </div>
-                  )}
-                  {currentBrief.model && (
-                    <div className="provenance-item">
-                      <span className="provenance-label">Model Engine</span>
-                      <span className="provenance-value font-mono">
-                        ⚡ {currentBrief.model}
-                      </span>
-                    </div>
-                  )}
-                  {currentBrief.token_usage && (
-                    <div className="provenance-item">
-                      <span className="provenance-label">Token Breakdown</span>
-                      <span className="provenance-value font-mono">
-                        {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
-                        {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
-                      </span>
-                    </div>
-                  )}
-                  <div className="provenance-item">
-                    <span className="provenance-label">Published</span>
-                    <span className="provenance-value">
-                      {formatTime(currentBrief.published_at)}
-                    </span>
-                  </div>
-                  {currentBrief.job_id && (
-                    <div className="provenance-item">
-                      <span className="provenance-label">Investigation ID</span>
-                      <span className="provenance-value font-mono">
-                        {currentBrief.job_id}
-                      </span>
-                    </div>
-                  )}
-                </section>
 
-                {/* Executive Summary Callout */}
-                {currentBrief.summary && (
-                  <section className="executive-summary-box">
-                    <div className="summary-heading">Executive Synthesis</div>
-                    <p className="summary-text">{currentBrief.summary}</p>
+                  {/* Main Report Body (Markdown) */}
+                  <section className="markdown-body">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({ node, ...props }) => (
+                          <a target="_blank" rel="noopener noreferrer" {...props} />
+                        ),
+                      }}
+                    >
+                      {currentBrief.content_markdown || "*No detailed report content provided.*"}
+                    </ReactMarkdown>
                   </section>
-                )}
+                </div>
 
-                {/* Main Report Body (Markdown) */}
-                <section className="markdown-body">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      a: ({ node, ...props }) => (
-                        <a target="_blank" rel="noopener noreferrer" {...props} />
-                      ),
-                    }}
-                  >
-                    {currentBrief.content_markdown || "*No detailed report content provided.*"}
-                  </ReactMarkdown>
-                </section>
+                {/* Right Column: Sticky Provenance & Evidence Audit Panel */}
+                <aside className="detail-audit-column">
+                  {/* Provenance Metadata Card */}
+                  <section className="provenance-card">
+                    <div className="provenance-card-title">Investigation Provenance</div>
+                    <div className="provenance-grid">
+                      <div className="provenance-item">
+                        <span className="provenance-label">Research Type</span>
+                        <span className="provenance-value">{currentBrief.research_type}</span>
+                      </div>
+                      <div className="provenance-item">
+                        <span className="provenance-label">Evidence Base</span>
+                        <span className="provenance-value">
+                          {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
+                        </span>
+                      </div>
+                      {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                        <div className="provenance-item">
+                          <span className="provenance-label">Generation Cost</span>
+                          <span className="provenance-value highlight-success">
+                            💰 ${currentBrief.cost_usd.toFixed(4)} USD
+                          </span>
+                        </div>
+                      )}
+                      {currentBrief.duration_seconds && (
+                        <div className="provenance-item">
+                          <span className="provenance-label">Duration</span>
+                          <span className="provenance-value">
+                            ⏱️ {formatDuration(currentBrief.duration_seconds)} ({currentBrief.duration_seconds}s)
+                          </span>
+                        </div>
+                      )}
+                      {currentBrief.model && (
+                        <div className="provenance-item">
+                          <span className="provenance-label">Model Engine</span>
+                          <span className="provenance-value font-mono">
+                            ⚡ {currentBrief.model}
+                          </span>
+                        </div>
+                      )}
+                      {currentBrief.token_usage && (
+                        <div className="provenance-item">
+                          <span className="provenance-label">Token Breakdown</span>
+                          <span className="provenance-value font-mono">
+                            {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
+                            {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
+                          </span>
+                        </div>
+                      )}
+                      <div className="provenance-item">
+                        <span className="provenance-label">Published</span>
+                        <span className="provenance-value">
+                          {formatTime(currentBrief.published_at)}
+                        </span>
+                      </div>
+                      {currentBrief.job_id && (
+                        <div className="provenance-item">
+                          <span className="provenance-label">Investigation ID</span>
+                          <span className="provenance-value font-mono">
+                            {currentBrief.job_id}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </section>
 
-                {/* Verified Claims & Evidence Mapping */}
-                {currentBrief.claims && currentBrief.claims.length > 0 && (
-                  <section className="claims-section">
-                    <h3 className="section-title">
-                      <span>Claims & Verification Audit</span>
-                      <span className="title-count">({currentBrief.claims.length})</span>
-                    </h3>
-                    <div className="claims-grid">
-                      {currentBrief.claims.map((claim) => (
-                        <div key={claim.id} className="claim-card">
-                          <div className="claim-header">
-                            <span className={`claim-status ${claim.status}`}>{claim.status}</span>
-                            <span className="claim-statement">{claim.statement}</span>
-                          </div>
-                          {claim.evidence_summary && (
-                            <div className="claim-evidence">{claim.evidence_summary}</div>
-                          )}
-                          {claim.source_ids.length > 0 && (
-                            <div className="claim-sources-ref">
-                              <span>Supported by:</span>
-                              {claim.source_ids.map((sid) => {
-                                const s = currentBrief.sources.find((src) => src.id === sid);
-                                return (
-                                  <span key={sid} className="tag-pill" title={s?.title || `Source #${sid}`}>
-                                    {s?.publisher || `Source #${sid}`}
-                                  </span>
-                                );
-                              })}
+                  {/* Verified Claims & Evidence Mapping */}
+                  {currentBrief.claims && currentBrief.claims.length > 0 && (
+                    <section className="claims-section">
+                      <h3 className="section-title">
+                        <span>Claims & Verification Audit</span>
+                        <span className="title-count">({currentBrief.claims.length})</span>
+                      </h3>
+                      <div className="claims-grid">
+                        {currentBrief.claims.map((claim) => (
+                          <div key={claim.id} className="claim-card">
+                            <div className="claim-header">
+                              <span className={`claim-status ${claim.status}`}>{claim.status}</span>
+                              <span className="claim-statement">{claim.statement}</span>
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Primary Sources Archive */}
-                {currentBrief.sources && currentBrief.sources.length > 0 && (
-                  <section className="sources-section">
-                    <h3 className="section-title">
-                      <span>Primary Evidence & Sources</span>
-                      <span className="title-count">({currentBrief.sources.length})</span>
-                    </h3>
-                    <div className="sources-list">
-                      {currentBrief.sources.map((source) => (
-                        <div key={source.id} className="source-item">
-                          <div className="source-top">
-                            <a
-                              href={source.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="source-link"
-                            >
-                              {source.title || source.url} ↗
-                            </a>
-                            <span className="badge badge-category">{source.source_type}</span>
-                          </div>
-                          <div className="source-meta">
-                            <span>
-                              <strong>Publisher:</strong> {source.publisher || "Unknown"}
-                            </span>
-                            {source.author && (
-                              <span>
-                                <strong>Author:</strong> {source.author}
-                              </span>
+                            {claim.evidence_summary && (
+                              <div className="claim-evidence">{claim.evidence_summary}</div>
                             )}
-                            <span>
-                              <strong>Reliability:</strong> {source.reliability}
-                            </span>
-                            {source.published_at && (
-                              <span>
-                                <strong>Published:</strong> {formatTime(source.published_at)}
-                              </span>
+                            {claim.source_ids.length > 0 && (
+                              <div className="claim-sources-ref">
+                                <span>Supported by:</span>
+                                {claim.source_ids.map((sid) => {
+                                  const s = currentBrief.sources.find((src) => src.id === sid);
+                                  return (
+                                    <span key={sid} className="tag-pill" title={s?.title || `Source #${sid}`}>
+                                      {s?.publisher || `Source #${sid}`}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             )}
                           </div>
-                          {source.relevance && (
-                            <div className="source-relevance">{source.relevance}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
-                {/* Operator Admin Controls */}
-                {auth?.is_admin && (
-                  <div className="admin-actions">
-                    <button className="btn-secondary" onClick={() => toggleVisibility(currentBrief)}>
-                      Toggle Visibility to {currentBrief.visibility === "private" ? "Public" : "Private"}
-                    </button>
-                    <button className="btn-danger" onClick={() => deleteBrief(currentBrief.id)}>
-                      Delete Brief
-                    </button>
-                  </div>
-                )}
-              </>
+                  {/* Primary Sources Archive */}
+                  {currentBrief.sources && currentBrief.sources.length > 0 && (
+                    <section className="sources-section">
+                      <h3 className="section-title">
+                        <span>Primary Evidence & Sources</span>
+                        <span className="title-count">({currentBrief.sources.length})</span>
+                      </h3>
+                      <div className="sources-list">
+                        {currentBrief.sources.map((source) => (
+                          <div key={source.id} className="source-item">
+                            <div className="source-top">
+                              <a
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="source-link"
+                              >
+                                {source.title || source.url} ↗
+                              </a>
+                              <span className="badge badge-category">{source.source_type}</span>
+                            </div>
+                            <div className="source-meta">
+                              <span>
+                                <strong>Publisher:</strong> {source.publisher || "Unknown"}
+                              </span>
+                              {source.author && (
+                                <span>
+                                  <strong>Author:</strong> {source.author}
+                                </span>
+                              )}
+                              <span>
+                                <strong>Reliability:</strong> {source.reliability}
+                              </span>
+                              {source.published_at && (
+                                <span>
+                                  <strong>Published:</strong> {formatTime(source.published_at)}
+                                </span>
+                              )}
+                            </div>
+                            {source.relevance && (
+                              <div className="source-relevance">{source.relevance}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Operator Admin Controls */}
+                  {auth?.is_admin && (
+                    <div className="admin-actions">
+                      <button className="btn-secondary" onClick={() => toggleVisibility(currentBrief)}>
+                        Toggle Visibility to {currentBrief.visibility === "private" ? "Public" : "Private"}
+                      </button>
+                      <button className="btn-danger" onClick={() => deleteBrief(currentBrief.id)}>
+                        Delete Brief
+                      </button>
+                    </div>
+                  )}
+                </aside>
+              </div>
             )}
           </article>
         ) : (
@@ -1224,8 +1375,9 @@ export default function App() {
           </div>
         )}
       </main>
+    </div>
 
-      {/* Persistent Mobile Bottom Navigation Bar */}
+    {/* Persistent Mobile Bottom Navigation Bar */}
       <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
         <button
           className={`bottom-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
