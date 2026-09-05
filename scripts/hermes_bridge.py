@@ -235,8 +235,13 @@ def execute_pipeline(topic: str, depth: str = "standard", input_job_id: str | No
         job_id = job_resp["id"]
         print(f"[hermes_bridge] Created ResearchJob: {job_id}")
 
-    # 2. Mark Running
+    # 2. Mark Running & Send Start Acknowledgment
     request_bugle(f"/api/v1/jobs/{job_id}", method="PATCH", data={"status": "running"})
+    send_telegram_alert(
+        f"🎺 *Bugle Investigation Started*\n\n"
+        f"*Topic:* {topic}\n"
+        f"Investigating across primary sources in the background... I'll notify you once published."
+    )
 
     # 3. Hermes Investigation
     t0 = time.time()
@@ -247,6 +252,11 @@ def execute_pipeline(topic: str, depth: str = "standard", input_job_id: str | No
             f"/api/v1/jobs/{job_id}",
             method="PATCH",
             data={"status": "failed", "execution_meta": {"error": str(e)}},
+        )
+        send_telegram_alert(
+            f"⚠️ *Bugle Investigation Failed*\n\n"
+            f"*Topic:* {topic}\n"
+            f"*Reason:* {e}"
         )
         raise
     measured_duration = round(time.time() - t0, 2)
