@@ -39,6 +39,9 @@ class Settings(pydantic_settings.BaseSettings):
     #: Whether dev mode is enabled (allows localhost requests admin access without CF headers).
     dev_mode: bool = False
 
+    #: INR per USD used when recording cost telemetry. Override with BUGLE_USD_TO_INR_RATE.
+    usd_to_inr_rate: float = 95.56
+
     model_config = pydantic_settings.SettingsConfigDict(
         env_prefix="BUGLE_",
         env_file=".env",

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { request as apiRequest } from "./api";
 
 type AuthInfo = {
   role: string;
@@ -25,6 +26,8 @@ type BriefSummary = {
   source_count: number;
   claim_count: number;
   cost_usd: number | null;
+  cost_inr: number | null;
+  cost_exchange_rate: number | null;
   duration_seconds: number | null;
   model: string | null;
   total_tokens: number | null;
@@ -74,12 +77,44 @@ type TabType = "home" | "search" | "saved" | "archive";
 
 const SUGGESTIONS = ["AI", "productivity", "markets", "climate", "semiconductor"];
 
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Bugle UI error", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="app-error-state">
+          <h1>Bugle needs a refresh</h1>
+          <p>This view encountered an unexpected error.</p>
+          <button className="btn-secondary" onClick={() => window.location.reload()}>
+            Reload Bugle
+          </button>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function formatCost(usd: number | null | undefined) {
   if (usd === null || usd === undefined) return null;
   if (usd === 0) return "$0.00";
   if (usd < 0.0001) return "<$0.0001";
   if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(3)}`;
+}
+
+function formatInr(inr: number | null | undefined) {
+  if (inr === null || inr === undefined) return null;
+  return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function formatDuration(sec: number | null | undefined) {
@@ -110,6 +145,19 @@ function formatTime(iso: string | null) {
     });
   } catch {
     return iso;
+  }
+}
+
+function formatDateTimeParts(iso: string | null) {
+  if (!iso) return { date: "Unknown", time: "" };
+  try {
+    const date = new Date(iso);
+    return {
+      date: date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+      time: date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    };
+  } catch {
+    return { date: iso, time: "" };
   }
 }
 
@@ -190,27 +238,6 @@ function IconArchive({ className = "" }: { className?: string }) {
   );
 }
 
-function IconPaper({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  );
-}
-
-function IconBriefs({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
-  );
-}
-
 function IconHistory({ className = "" }: { className?: string }) {
   return (
     <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -261,7 +288,7 @@ function IconShare({ className = "" }: { className?: string }) {
   );
 }
 
-export default function App() {
+function AppContent() {
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const [briefs, setBriefs] = useState<BriefSummary[]>([]);
   const [currentBriefId, setCurrentBriefId] = useState<string | null>(null);
@@ -271,6 +298,7 @@ export default function App() {
   const [archiveCategory, setArchiveCategory] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteArmedId, setDeleteArmedId] = useState<string | null>(null);
 
   // Saved bookmarks state (synced to localStorage)
   const [savedIds, setSavedIds] = useState<string[]>(() => {
@@ -344,18 +372,22 @@ export default function App() {
   useEffect(() => {
     const handleHash = () => {
       const hash = window.location.hash;
-      if (hash.startsWith("#/brief/")) {
-        const id = hash.replace("#/brief/", "").trim();
+      const [route, queryString = ""] = hash.split("?");
+      const params = new URLSearchParams(queryString);
+      if (route.startsWith("#/brief/")) {
+        const id = route.replace("#/brief/", "").trim();
         setCurrentBriefId(id);
       } else {
         setCurrentBriefId(null);
         setCurrentBrief(null);
-        if (hash === "#/search") {
+        if (route === "#/search") {
           setActiveTab("search");
-        } else if (hash === "#/saved") {
+          setSearch(params.get("q") || "");
+        } else if (route === "#/saved") {
           setActiveTab("saved");
-        } else if (hash === "#/archive") {
+        } else if (route === "#/archive") {
           setActiveTab("archive");
+          setArchiveCategory(params.get("category") || "all");
         } else {
           setActiveTab("home");
         }
@@ -366,10 +398,20 @@ export default function App() {
     return () => window.removeEventListener("hashchange", handleHash);
   }, []);
 
+  useEffect(() => {
+    if (currentBriefId) return;
+    if (activeTab === "search") {
+      const query = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : "";
+      window.history.replaceState(null, "", `#/${activeTab}${query}`);
+    } else if (activeTab === "archive") {
+      const query = archiveCategory !== "all" ? `?category=${encodeURIComponent(archiveCategory)}` : "";
+      window.history.replaceState(null, "", `#/${activeTab}${query}`);
+    }
+  }, [activeTab, archiveCategory, currentBriefId, search]);
+
   // Fetch Auth context
   useEffect(() => {
-    fetch("/api/v1/auth/me")
-      .then((r) => r.json())
+    apiRequest<AuthInfo>("/api/v1/auth/me")
       .then((data) => setAuth(data))
       .catch(() => {
         setAuth({
@@ -383,23 +425,17 @@ export default function App() {
   }, []);
 
   // Load Briefs Feed
-  const loadBriefs = useCallback(async (query: string = "") => {
+  const loadBriefs = useCallback(async (query: string = "", signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
       const url = query.trim()
         ? `/api/v1/briefs?search=${encodeURIComponent(query.trim())}`
         : "/api/v1/briefs";
-      const res = await fetch(url);
-      if (!res.ok) {
-        if (res.status === 403) {
-          throw new Error("Private-first archive: Public access is currently restricted.");
-        }
-        throw new Error(`Failed to load briefs (${res.status})`);
-      }
-      const data = await res.json();
+      const data = await apiRequest<{ briefs?: BriefSummary[] }>(url, { signal });
       setBriefs(Array.isArray(data.briefs) ? data.briefs : []);
     } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setError(e instanceof Error ? e.message : String(e));
       setBriefs([]);
     } finally {
@@ -410,13 +446,17 @@ export default function App() {
   // Trigger search with debounce
   useEffect(() => {
     if (currentBriefId) return;
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      loadBriefs(search);
+      loadBriefs(search, controller.signal);
       if (search.trim().length >= 3) {
         recordSearch(search);
       }
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [search, currentBriefId, loadBriefs]);
 
   // Load Single Brief Detail
@@ -424,14 +464,8 @@ export default function App() {
     if (!currentBriefId) return;
     setLoading(true);
     setError(null);
-    fetch(`/api/v1/briefs/${encodeURIComponent(currentBriefId)}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Brief not found or access restricted (${res.status})`);
-        }
-        return res.json();
-      })
-      .then((data: BriefDetail) => {
+    apiRequest<BriefDetail>(`/api/v1/briefs/${encodeURIComponent(currentBriefId)}`)
+      .then((data) => {
         setCurrentBrief(data);
       })
       .catch((err) => {
@@ -446,27 +480,26 @@ export default function App() {
   const toggleVisibility = async (brief: BriefDetail) => {
     const nextVis = brief.visibility === "private" ? "public" : "private";
     try {
-      const res = await fetch(`/api/v1/briefs/${brief.id}`, {
+      const updated = await apiRequest<BriefDetail>(`/api/v1/briefs/${brief.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ visibility: nextVis }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setCurrentBrief(updated);
-      }
+      setCurrentBrief(updated);
     } catch (err) {
       alert(`Error toggling visibility: ${err}`);
     }
   };
 
   const deleteBrief = async (id: string) => {
-    if (!confirm("Are you sure you want to permanently delete this research brief?")) return;
+    if (deleteArmedId !== id) {
+      setDeleteArmedId(id);
+      window.setTimeout(() => setDeleteArmedId((current) => current === id ? null : current), 2500);
+      return;
+    }
     try {
-      const res = await fetch(`/api/v1/briefs/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        window.location.hash = "";
-      }
+      await apiRequest<void>(`/api/v1/briefs/${id}`, { method: "DELETE" });
+      setDeleteArmedId(null);
+      window.location.hash = "";
     } catch (err) {
       alert(`Error deleting brief: ${err}`);
     }
@@ -604,14 +637,19 @@ export default function App() {
 
   const operatorEmail = auth?.email || "gaurav.singh.86@gmail.com";
   const operatorInitials = getOperatorInitials(operatorEmail);
+  const publishedAt = formatDateTimeParts(currentBrief?.published_at || null);
 
   // Profile popover state & click outside listener
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const desktopProfileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const mobileOpen = profileRef.current && profileRef.current.contains(target);
+      const desktopOpen = desktopProfileRef.current && desktopProfileRef.current.contains(target);
+      if (!mobileOpen && !desktopOpen) {
         setShowProfileMenu(false);
       }
     }
@@ -621,6 +659,112 @@ export default function App() {
     }
   }, [showProfileMenu]);
 
+  // Shared profile-menu content (mobile header dropdown + desktop sidebar footer menu)
+  const renderProfileMenuContent = () => (
+    <>
+      <div className="profile-menu-heading">
+        <div className="profile-menu-avatar">{operatorInitials}</div>
+        <div className="dropdown-meta">
+          <span className="profile-menu-eyebrow">Operator account</span>
+          <strong className="dropdown-email" title={operatorEmail}>
+            {operatorEmail}
+          </strong>
+          <span className="dropdown-role">
+            <span className="status-dot online" />
+            {auth?.is_admin ? "Administrator" : "Public viewer"}
+          </span>
+        </div>
+        <button
+          className="dropdown-close-btn"
+          onClick={() => setShowProfileMenu(false)}
+          aria-label="Close menu"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="profile-status-banner">
+        <span className="profile-status-icon"><span className="status-dot online" /></span>
+        <div>
+          <strong>System operational</strong>
+          <span>Hermes Core · Local daemon</span>
+        </div>
+        <span className="profile-status-live">LIVE</span>
+      </div>
+
+      <div className="profile-stats-grid">
+        <div className="profile-stat-box">
+          <span className="profile-stat-number">{briefs.length}</span>
+          <span className="profile-stat-label">Briefs</span>
+        </div>
+        <div className="profile-stat-box highlight-spend">
+          <span className="profile-stat-number">${totalSpend.toFixed(3)}</span>
+          <span className="profile-stat-label">Total Spend</span>
+        </div>
+        <div className="profile-stat-box">
+          <span className="profile-stat-number">{savedIds.length}</span>
+          <span className="profile-stat-label">Saved</span>
+        </div>
+      </div>
+
+      <div className="profile-info-list">
+        <div className="dropdown-row">
+          <span className="dropdown-label">Engine</span>
+          <span className="dropdown-val">Hermes Agentic Core</span>
+        </div>
+        <div className="dropdown-row">
+          <span className="dropdown-label">Pipeline</span>
+          <span className="dropdown-val">Claims audit</span>
+        </div>
+        <div className="dropdown-row">
+          <span className="dropdown-label">Network</span>
+          <span className="dropdown-val">Access tunnel</span>
+        </div>
+      </div>
+
+      <div className="profile-menu-actions">
+        <button
+          className="profile-nav-action-btn profile-nav-primary"
+          onClick={() => {
+            setShowProfileMenu(false);
+            switchTab("search");
+          }}
+        >
+          <IconSearch className="action-icon" />
+          <span>Search archive</span>
+          <span className="profile-action-arrow">→</span>
+        </button>
+        <button
+          className="profile-nav-action-btn"
+          onClick={() => {
+            setShowProfileMenu(false);
+            switchTab("saved");
+          }}
+        >
+          <IconStar filled={false} className="action-icon" />
+          <span>Saved bookmarks <small>{savedIds.length}</small></span>
+          <span className="profile-action-arrow">→</span>
+        </button>
+        <button
+          className="profile-nav-action-btn"
+          onClick={() => {
+            setShowProfileMenu(false);
+            switchTab("archive");
+          }}
+        >
+          <IconArchive className="action-icon" />
+          <span>Research catalogue</span>
+          <span className="profile-action-arrow">→</span>
+        </button>
+      </div>
+
+      <div className="profile-dropdown-footer">
+        <span><span className="status-dot online" /> Private workspace</span>
+        <span>Cloudflare Access</span>
+      </div>
+    </>
+  );
+
   // Render Brief Card in reading-friendly blog style
   const renderBriefCard = (b: BriefSummary, index: number) => {
     const isSaved = savedIds.includes(b.id);
@@ -628,11 +772,21 @@ export default function App() {
     const readDuration = estimateReadingTime(b.summary);
 
     return (
-      <li
-        key={b.id}
-        className={`blog-card ${isFeatured ? "blog-card-featured" : "blog-card-standard"}`}
-        onClick={() => openBrief(b.id)}
-      >
+        <li
+          key={b.id}
+          className={`blog-card ${isFeatured ? "blog-card-featured" : "blog-card-standard"}`}
+          onClick={() => openBrief(b.id)}
+          onKeyDown={(e) => {
+            if (e.target instanceof HTMLElement && e.target.closest("button, a, input")) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openBrief(b.id);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open research brief: ${b.title}`}
+        >
         {/* Card Header row: Category, read time, relative time, cost, actions */}
         <div className="blog-card-meta-top">
           <span className="blog-tag-badge">{b.category}</span>
@@ -643,7 +797,7 @@ export default function App() {
           <span className="blog-rel-time">{formatRelativeTime(b.published_at)}</span>
           {b.cost_usd !== null && b.cost_usd !== undefined && (
             <span className="blog-cost-pill" title={`Estimated generation cost: $${b.cost_usd}`}>
-              💰 {formatCost(b.cost_usd)}
+              💰 {formatCost(b.cost_usd)}{b.cost_inr !== null ? ` · ${formatInr(b.cost_inr)}` : ""}
             </span>
           )}
 
@@ -652,7 +806,8 @@ export default function App() {
               className={`btn-icon-action ${isSaved ? "saved" : ""}`}
               onClick={(e) => toggleSave(b.id, e)}
               title={isSaved ? "Remove bookmark" : "Save bookmark"}
-              aria-label="Save brief"
+              aria-label={isSaved ? "Remove bookmark" : "Save brief"}
+              aria-pressed={isSaved}
             >
               <IconStar filled={isSaved} />
             </button>
@@ -687,7 +842,7 @@ export default function App() {
           <div className="blog-provenance-pills">
             {b.model && (
               <span className="badge-pill badge-model" title={`Engine: ${b.model}`}>
-                ⚡ {formatModel(b.model)}
+                {formatModel(b.model)}
               </span>
             )}
             <span className={`badge-pill badge-depth badge-depth-${b.research_depth.toLowerCase()}`}>
@@ -780,10 +935,6 @@ export default function App() {
 
           {/* Sidebar System & Intelligence Metrics */}
           <div className="sidebar-status-box">
-            <div className="sidebar-status-row">
-              <span className="status-dot online" />
-              <span className="sidebar-status-engine">Hermes Core Online</span>
-            </div>
             <div className="sidebar-metrics-row">
               <div className="sidebar-metric-item">
                 <span className="sidebar-metric-label">Spend</span>
@@ -798,18 +949,32 @@ export default function App() {
           </div>
         </div>
 
-        {/* Sidebar Operator Profile Footer */}
-        <div className="sidebar-profile-footer">
-          <div className="sidebar-avatar">{operatorInitials}</div>
-          <div className="sidebar-operator-details">
-            <span className="sidebar-operator-name" title={operatorEmail}>
-              {operatorEmail}
-            </span>
-            <span className="sidebar-operator-status">
-              <span className="status-dot online" />
-              {auth?.is_admin ? "Operator (Admin)" : "Public View"}
-            </span>
-          </div>
+        {/* Sidebar Operator Profile Footer (opens the profile menu on desktop) */}
+        <div className="sidebar-profile-footer profile-menu-root" ref={desktopProfileRef}>
+          <button
+            className="sidebar-profile-btn"
+            onClick={() => setShowProfileMenu((prev) => !prev)}
+            aria-label={`Open profile menu: ${operatorEmail}`}
+            aria-expanded={showProfileMenu}
+            aria-haspopup="menu"
+          >
+            <div className="sidebar-avatar">{operatorInitials}</div>
+            <div className="sidebar-operator-details">
+              <span className="sidebar-operator-name" title={operatorEmail}>
+                {operatorEmail}
+              </span>
+              <span className="sidebar-operator-status">
+                <span className="status-dot online" />
+                {auth?.is_admin ? "Operator (Admin)" : "Public View"}
+              </span>
+            </div>
+          </button>
+
+          {showProfileMenu && (
+            <div className="profile-dropdown-card sidebar-profile-dropdown" role="menu" aria-label="Operator profile menu">
+              {renderProfileMenuContent()}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -835,6 +1000,8 @@ export default function App() {
                 className={`operator-avatar-btn ${showProfileMenu ? "active" : ""}`}
                 onClick={() => setShowProfileMenu((prev) => !prev)}
                 aria-label={`Operator profile: ${operatorEmail}`}
+                aria-expanded={showProfileMenu}
+                aria-haspopup="menu"
                 title={`Operator: ${operatorEmail} (${auth?.is_admin ? "Admin" : "Public"})`}
               >
                 <span className="avatar-initials">{operatorInitials}</span>
@@ -842,92 +1009,7 @@ export default function App() {
               </button>
 
               {showProfileMenu && (
-                <div className="profile-dropdown-card">
-                  <div className="profile-dropdown-header">
-                    <div className="dropdown-avatar">{operatorInitials}</div>
-                    <div className="dropdown-meta">
-                      <span className="dropdown-email" title={operatorEmail}>
-                        {operatorEmail}
-                      </span>
-                      <span className="dropdown-role">
-                        <span className="status-dot online" />
-                        {auth?.is_admin ? "Operator (Admin)" : "Public View"}
-                      </span>
-                    </div>
-                    <button
-                      className="dropdown-close-btn"
-                      onClick={() => setShowProfileMenu(false)}
-                      aria-label="Close menu"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {/* Aggregate Stat Grid (Moved from home feed for reading clarity) */}
-                  <div className="profile-stats-grid">
-                    <div className="profile-stat-box">
-                      <span className="profile-stat-number">{briefs.length}</span>
-                      <span className="profile-stat-label">Briefs</span>
-                    </div>
-                    <div className="profile-stat-box highlight-spend">
-                      <span className="profile-stat-number">${totalSpend.toFixed(3)}</span>
-                      <span className="profile-stat-label">Total Spend</span>
-                    </div>
-                    <div className="profile-stat-box">
-                      <span className="profile-stat-number">{savedIds.length}</span>
-                      <span className="profile-stat-label">Saved</span>
-                    </div>
-                  </div>
-
-                  <div className="profile-dropdown-body">
-                    <div className="dropdown-row">
-                      <span className="dropdown-label">Engine</span>
-                      <span className="dropdown-val">⚡ Hermes Agentic Core</span>
-                    </div>
-                    <div className="dropdown-row">
-                      <span className="dropdown-label">Pipeline</span>
-                      <span className="dropdown-val">Multi-source Claims Audit</span>
-                    </div>
-                    <div className="dropdown-row">
-                      <span className="dropdown-label">Network</span>
-                      <span className="dropdown-val">Cloudflare Access Tunnel</span>
-                    </div>
-                  </div>
-
-                  <div className="profile-quick-nav">
-                    <button
-                      className="profile-nav-action-btn"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        switchTab("search");
-                      }}
-                    >
-                      <IconSearch className="action-icon" /> Search Topics & Tags
-                    </button>
-                    <button
-                      className="profile-nav-action-btn"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        switchTab("saved");
-                      }}
-                    >
-                      <IconStar filled={false} className="action-icon" /> Saved Bookmarks ({savedIds.length})
-                    </button>
-                    <button
-                      className="profile-nav-action-btn"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        switchTab("archive");
-                      }}
-                    >
-                      <IconArchive className="action-icon" /> Research Archive
-                    </button>
-                  </div>
-
-                  <div className="profile-dropdown-footer">
-                    <span>Signed in via Cloudflare Access</span>
-                  </div>
-                </div>
+                <div className="profile-dropdown-card" role="menu" aria-label="Operator profile menu">{renderProfileMenuContent()}</div>
               )}
             </div>
           </header>
@@ -973,7 +1055,7 @@ export default function App() {
         {/* VIEW: Single Brief Detail */}
         {currentBriefId ? (
           <article className="brief-detail-view">
-            <div className="sticky-back-bar">
+            <div className="sticky-back-bar detail-back-bar">
               <button className="back-btn" onClick={goHome}>
                 ← Back to all investigations
               </button>
@@ -982,6 +1064,8 @@ export default function App() {
                   className={`btn-icon-action ${savedIds.includes(currentBrief.id) ? "saved" : ""}`}
                   onClick={() => toggleSave(currentBrief.id)}
                   title={savedIds.includes(currentBrief.id) ? "Bookmarked" : "Bookmark this brief"}
+                  aria-label={savedIds.includes(currentBrief.id) ? "Remove bookmark" : "Bookmark this brief"}
+                  aria-pressed={savedIds.includes(currentBrief.id)}
                 >
                   <IconStar filled={savedIds.includes(currentBrief.id)} />
                 </button>
@@ -998,7 +1082,7 @@ export default function App() {
                     <div className="badge-row">
                       {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
                         <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
-                          💰 {formatCost(currentBrief.cost_usd)}
+                          💰 {formatCost(currentBrief.cost_usd)}{currentBrief.cost_inr !== null ? ` · ${formatInr(currentBrief.cost_inr)}` : ""}
                         </span>
                       )}
                       {currentBrief.duration_seconds && (
@@ -1008,7 +1092,7 @@ export default function App() {
                       )}
                       {currentBrief.model && (
                         <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
-                          ⚡ {formatModel(currentBrief.model)}
+                          {formatModel(currentBrief.model)}
                         </span>
                       )}
                       <span className="badge badge-category">
@@ -1055,24 +1139,39 @@ export default function App() {
                 {/* Right Column: Sticky Provenance & Evidence Audit Panel */}
                 <aside className="detail-audit-column">
                   {/* Provenance Metadata Card */}
-                  <section className="provenance-card">
-                    <div className="provenance-card-title">Investigation Provenance</div>
+                  <section className="provenance-card" aria-labelledby="provenance-title">
+                    <div className="provenance-card-header">
+                      <div>
+                        <span className="provenance-eyebrow">Audit trail</span>
+                        <h3 id="provenance-title" className="provenance-card-title">Investigation Provenance</h3>
+                      </div>
+                      <span className="provenance-confidence">{currentBrief.confidence} confidence</span>
+                    </div>
+                    <div className="provenance-summary">
+                      <div className="provenance-summary-stat">
+                        <strong>{currentBrief.source_count}</strong>
+                        <span>Sources</span>
+                      </div>
+                      <div className="provenance-summary-stat">
+                        <strong>{currentBrief.claim_count}</strong>
+                        <span>Claims</span>
+                      </div>
+                      <div className="provenance-summary-stat">
+                        <strong>{currentBrief.research_depth}</strong>
+                        <span>Depth</span>
+                      </div>
+                    </div>
                     <div className="provenance-grid">
                       <div className="provenance-item">
                         <span className="provenance-label">Research Type</span>
                         <span className="provenance-value">{currentBrief.research_type}</span>
                       </div>
-                      <div className="provenance-item">
-                        <span className="provenance-label">Evidence Base</span>
-                        <span className="provenance-value">
-                          {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
-                        </span>
-                      </div>
                       {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
                         <div className="provenance-item">
                           <span className="provenance-label">Generation Cost</span>
-                          <span className="provenance-value highlight-success">
-                            💰 ${currentBrief.cost_usd.toFixed(4)} USD
+                          <span className="provenance-value provenance-stack highlight-success">
+                            <span>${currentBrief.cost_usd.toFixed(4)} USD</span>
+                            {currentBrief.cost_inr !== null && <span>{formatInr(currentBrief.cost_inr)} INR</span>}
                           </span>
                         </div>
                       )}
@@ -1088,23 +1187,25 @@ export default function App() {
                         <div className="provenance-item">
                           <span className="provenance-label">Model Engine</span>
                           <span className="provenance-value font-mono">
-                            ⚡ {currentBrief.model}
+                            {currentBrief.model}
                           </span>
                         </div>
                       )}
                       {currentBrief.token_usage && (
                         <div className="provenance-item">
                           <span className="provenance-label">Token Breakdown</span>
-                          <span className="provenance-value font-mono">
-                            {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
-                            {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
+                          <span className="provenance-value font-mono provenance-stack">
+                            <span>{(currentBrief.token_usage.input || 0).toLocaleString()} in</span>
+                            <span>{(currentBrief.token_usage.output || 0).toLocaleString()} out</span>
+                            {currentBrief.total_tokens ? <span className="provenance-total">{currentBrief.total_tokens.toLocaleString()} total</span> : null}
                           </span>
                         </div>
                       )}
                       <div className="provenance-item">
                         <span className="provenance-label">Published</span>
-                        <span className="provenance-value">
-                          {formatTime(currentBrief.published_at)}
+                        <span className="provenance-value provenance-stack">
+                          <span>{publishedAt.date}</span>
+                          {publishedAt.time && <span>{publishedAt.time}</span>}
                         </span>
                       </div>
                       {currentBrief.job_id && (
@@ -1209,7 +1310,7 @@ export default function App() {
                         Toggle Visibility to {currentBrief.visibility === "private" ? "Public" : "Private"}
                       </button>
                       <button className="btn-danger" onClick={() => deleteBrief(currentBrief.id)}>
-                        Delete Brief
+                        {deleteArmedId === currentBrief.id ? "Click again to delete" : "Delete Brief"}
                       </button>
                     </div>
                   )}
@@ -1230,7 +1331,9 @@ export default function App() {
                       <span className="search-icon">
                         <IconSearch />
                       </span>
+                      <label className="sr-only" htmlFor="home-search">Search research briefs</label>
                       <input
+                        id="home-search"
                         ref={searchInputRef}
                         type="text"
                         className="search-input"
@@ -1239,7 +1342,7 @@ export default function App() {
                         onChange={(e) => setSearch(e.target.value)}
                       />
                       {search ? (
-                        <button className="search-clear-btn" onClick={() => setSearch("")}>
+                        <button className="search-clear-btn" onClick={() => setSearch("")} aria-label="Clear search">
                           ✕
                         </button>
                       ) : (
@@ -1264,99 +1367,15 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-
-                  {/* 4 Quick-Nav Navigation Tiles */}
-                  <div className="quick-nav-grid">
-                    <div
-                      className="quick-nav-tile tile-papers"
-                      onClick={() => {
-                        setSearch("paper");
-                        switchTab("search");
-                      }}
-                    >
-                      <div className="tile-icon-box icon-papers">
-                        <IconPaper />
-                      </div>
-                      <div className="tile-content">
-                        <h4 className="tile-title">Papers</h4>
-                        <p className="tile-subtitle">Research papers</p>
-                      </div>
-                    </div>
-
-                    <div
-                      className="quick-nav-tile tile-briefs"
-                      onClick={() => switchTab("archive")}
-                    >
-                      <div className="tile-icon-box icon-briefs">
-                        <IconBriefs />
-                      </div>
-                      <div className="tile-content">
-                        <h4 className="tile-title">Briefs</h4>
-                        <p className="tile-subtitle">Summaries & insights</p>
-                      </div>
-                    </div>
-
-                    <div
-                      className="quick-nav-tile tile-saved"
-                      onClick={() => switchTab("saved")}
-                    >
-                      <div className="tile-icon-box icon-saved">
-                        <IconStar filled={false} />
-                      </div>
-                      <div className="tile-content">
-                        <h4 className="tile-title">Saved</h4>
-                        <p className="tile-subtitle">Your bookmarks ({savedIds.length})</p>
-                      </div>
-                    </div>
-
-                    <div
-                      className="quick-nav-tile tile-history"
-                      onClick={() => switchTab("search")}
-                    >
-                      <div className="tile-icon-box icon-history">
-                        <IconHistory />
-                      </div>
-                      <div className="tile-content">
-                        <h4 className="tile-title">History</h4>
-                        <p className="tile-subtitle">Past searches</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Aggregate Stat Cards */}
-                  <div className="stat-cards-grid">
-                    <div className="stat-card">
-                      <div className="stat-card-icon icon-briefs-stat">
-                        <IconPaper />
-                      </div>
-                      <div className="stat-card-content">
-                        <span className="stat-card-value">{briefs.length} Briefs</span>
-                        <span className="stat-card-label">Total researched</span>
-                      </div>
-                    </div>
-
-                    <div className="stat-card">
-                      <div className="stat-card-icon icon-coins-stat">
-                        <IconCoins />
-                      </div>
-                      <div className="stat-card-content">
-                        <span className="stat-card-value">${totalSpend.toFixed(3)}</span>
-                        <span className="stat-card-label">Total Spend</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Section Header Row (Visible on Desktop) */}
-                <div className="section-header-row feed-header-row">
-                  <div>
-                    <h2 className="section-heading">Recent Investigations</h2>
-                    <p className="section-subheading">Latest research outputs synthesized by Hermes</p>
-                  </div>
-                  <button className="view-all-link" onClick={() => switchTab("archive")}>
-                    View all archive →
-                  </button>
-                </div>
+                    {/* Section Header Row (Visible on Desktop) */}
+                    <div className="section-header-row feed-header-row">
+                      <div>
+                        <h2 className="section-heading">Recent Investigations</h2>
+                        <p className="section-subheading">Latest research outputs synthesized by Hermes</p>
+                      </div>
+                    </div>
 
                 {/* Feed Cards List */}
                 {loading && <div className="loading-state">Searching research archive…</div>}
@@ -1392,7 +1411,9 @@ export default function App() {
                     <span className="search-icon">
                       <IconSearch />
                     </span>
+                    <label className="sr-only" htmlFor="archive-search">Search briefs</label>
                     <input
+                      id="archive-search"
                       ref={searchInputRef}
                       type="text"
                       className="search-input"
@@ -1648,4 +1669,12 @@ export default function App() {
       </nav>
     </div>
 );
+}
+
+export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
+  );
 }

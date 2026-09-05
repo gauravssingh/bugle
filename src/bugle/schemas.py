@@ -49,6 +49,8 @@ class JobRead(BaseModel):
     status: str
     execution_meta: dict[str, Any]
     cost_usd: float | None = None
+    cost_inr: float | None = None
+    cost_exchange_rate: float | None = None
     duration_seconds: float | None = None
     model: str | None = None
     token_usage: dict[str, Any] | None = None
@@ -187,6 +189,8 @@ class BriefSummaryRead(BaseModel):
     source_count: int
     claim_count: int
     cost_usd: float | None = None
+    cost_inr: float | None = None
+    cost_exchange_rate: float | None = None
     duration_seconds: float | None = None
     model: str | None = None
     total_tokens: int | None = None
@@ -212,6 +216,8 @@ class BriefDetailRead(BriefSummaryRead):
 class BriefListRead(BaseModel):
     briefs: list[BriefSummaryRead]
     total: int
+    limit: int = 50
+    offset: int = 0
 
 
 class TaxonomyCategory(BaseModel):

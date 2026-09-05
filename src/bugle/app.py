@@ -12,19 +12,20 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select, true
 from sqlalchemy.orm import Session as SASession
 from sqlalchemy.orm import selectinload
 
 from . import __version__
 from .config import Settings, get_settings
-from .db import Brief, Claim, Database, ResearchJob, Source, generate_id, now_utc
+from .db import Brief, BriefRevision, Claim, Database, JobEvent, ResearchJob, Source, generate_id, now_utc
 from .schemas import (
     AuthMeResponse,
     BriefCreate,
@@ -60,6 +61,12 @@ def slugify(text: str) -> str:
     return cleaned[:40] if cleaned else "brief"
 
 
+def cost_inr_for(cost_usd: float | None, settings: Settings) -> float | None:
+    if cost_usd is None:
+        return None
+    return round(cost_usd * settings.usd_to_inr_rate, 2)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     db = Database(settings)
@@ -72,8 +79,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.db = db
     app.state.settings = settings
 
-    def get_db() -> SASession:
-        return db.session()
+    def get_db() -> Generator[SASession, None, None]:
+        """Provide one request-scoped session and always return it to the pool."""
+        db_session = db.session()
+        try:
+            yield db_session
+        finally:
+            db_session.close()
 
     def get_auth_context(
         request: Request,
@@ -155,6 +167,52 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def health():
         return {"status": "ok", "app": "bugle", "version": __version__}
 
+    @app.get("/api/v1/system/status")
+    def system_status(
+        db_session: SASession = Depends(get_db),
+        _: AuthContext = Depends(require_admin_or_service),
+    ):
+        briefs = db_session.scalar(select(func.count()).select_from(Brief)) or 0
+        jobs = db_session.scalar(select(func.count()).select_from(ResearchJob)) or 0
+        latest_job = db_session.scalar(
+            select(ResearchJob).order_by(ResearchJob.created_at.desc()).limit(1)
+        )
+        return {
+            "status": "ok",
+            "app": "bugle",
+            "version": __version__,
+            "database": {"briefs": briefs, "jobs": jobs},
+            "latest_job": (
+                {"id": latest_job.id, "status": latest_job.status, "created_at": latest_job.created_at}
+                if latest_job
+                else None
+            ),
+        }
+
+    @app.get("/api/v1/system/db-health")
+    def db_health(
+        db_session: SASession = Depends(get_db),
+        _: AuthContext = Depends(require_admin_or_service),
+    ):
+        connection = db_session.connection()
+        page_count = connection.exec_driver_sql("PRAGMA page_count").scalar() or 0
+        freelist_pages = connection.exec_driver_sql("PRAGMA freelist_count").scalar() or 0
+        integrity = connection.exec_driver_sql("PRAGMA integrity_check").scalar()
+        foreign_keys = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+        db_size = settings.db_path.stat().st_size if settings.db_path.exists() else 0
+        fragmentation = round((freelist_pages / page_count) * 100, 2) if page_count else 0.0
+        return {
+            "integrity_ok": integrity == "ok",
+            "foreign_keys_ok": not foreign_keys,
+            "page_count": page_count,
+            "freelist_pages": freelist_pages,
+            "fragmentation_pct": fragmentation,
+            "db_size_bytes": db_size,
+            "wal_size_bytes": settings.db_path.with_name(settings.db_path.name + "-wal").stat().st_size
+            if settings.db_path.with_name(settings.db_path.name + "-wal").exists()
+            else 0,
+        }
+
     @app.get("/api/v1/auth/me", response_model=AuthMeResponse)
     def auth_me(auth: AuthContext = Depends(get_auth_context)):
         return AuthMeResponse(
@@ -186,11 +244,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status="pending",
             execution_meta=payload.execution_meta,
             cost_usd=payload.cost_usd,
+            cost_inr=cost_inr_for(payload.cost_usd, settings),
+            cost_exchange_rate=settings.usd_to_inr_rate if payload.cost_usd is not None else None,
             duration_seconds=payload.duration_seconds,
             model=payload.model,
             token_usage=payload.token_usage,
         )
         db_session.add(job)
+        db_session.add(JobEvent(job_id=job_id, to_status="pending", message="Job created"))
         db_session.commit()
         db_session.refresh(job)
         return job
@@ -222,6 +283,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Research job not found",
             )
+        previous_status = job.status
         if payload.status is not None:
             job.status = payload.status
             if payload.status in ("completed", "failed", "cancelled") and not job.completed_at:
@@ -230,6 +292,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             job.execution_meta = payload.execution_meta
         if payload.cost_usd is not None:
             job.cost_usd = payload.cost_usd
+            job.cost_inr = cost_inr_for(payload.cost_usd, settings)
+            job.cost_exchange_rate = settings.usd_to_inr_rate
         if payload.duration_seconds is not None:
             job.duration_seconds = payload.duration_seconds
         if payload.model is not None:
@@ -239,14 +303,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if payload.completed_at is not None:
             job.completed_at = payload.completed_at
 
+        if payload.status is not None and payload.status != previous_status:
+            db_session.add(
+                JobEvent(
+                    job_id=job.id,
+                    from_status=previous_status,
+                    to_status=payload.status,
+                    message=f"Job transitioned from {previous_status} to {payload.status}",
+                )
+            )
+
         db_session.commit()
         db_session.refresh(job)
         return job
 
     @app.get("/api/v1/jobs", response_model=JobListRead)
     def list_jobs(
-        limit: int = 50,
-        offset: int = 0,
+        limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
         db_session: SASession = Depends(get_db),
         _: AuthContext = Depends(require_admin_or_service),
     ):
@@ -292,6 +366,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
         db_session.add(job)
+        db_session.add(JobEvent(job_id=job_id, to_status="pending", message="Job created via quick ingest"))
         db_session.commit()
         db_session.refresh(job)
 
@@ -336,6 +411,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             source_count=brief.source_count,
             claim_count=brief.claim_count,
             cost_usd=brief.cost_usd,
+            cost_inr=brief.cost_inr,
+            cost_exchange_rate=brief.cost_exchange_rate,
             duration_seconds=brief.duration_seconds,
             model=brief.model,
             token_usage=brief.token_usage,
@@ -391,6 +468,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             research_type=payload.research_type,
             research_depth=payload.research_depth,
             cost_usd=payload.cost_usd,
+            cost_inr=cost_inr_for(payload.cost_usd, settings),
+            cost_exchange_rate=settings.usd_to_inr_rate if payload.cost_usd is not None else None,
             duration_seconds=payload.duration_seconds,
             model=payload.model,
             token_usage=payload.token_usage,
@@ -453,6 +532,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     job.completed_at = now_utc()
                 if payload.cost_usd is not None and job.cost_usd is None:
                     job.cost_usd = payload.cost_usd
+                    job.cost_inr = cost_inr_for(payload.cost_usd, settings)
+                    job.cost_exchange_rate = settings.usd_to_inr_rate
                 if payload.duration_seconds is not None and job.duration_seconds is None:
                     job.duration_seconds = payload.duration_seconds
                 if payload.model is not None and job.model is None:
@@ -515,15 +596,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         total = db_session.scalar(select(func.count()).select_from(base.subquery())) or 0
         rows = db_session.scalars(
-            base.order_by(Brief.published_at.desc()).limit(limit).offset(offset)
+            base.order_by(Brief.published_at.desc(), Brief.id.desc()).limit(limit).offset(offset)
         ).all()
 
         # If tag filter is specified, filter in memory or via json contains
         if tag:
-            rows = [r for r in rows if tag in (r.tags or [])]
-            total = len(rows)
+            tag_values = func.json_each(Brief.tags).table_valued("value").alias("tag_values")
+            base = base.where(
+                exists(select(1).select_from(tag_values).where(tag_values.c.value == tag))
+            )
 
-        return {"briefs": rows, "total": total}
+            total = db_session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            rows = db_session.scalars(
+                base.order_by(Brief.published_at.desc(), Brief.id.desc()).limit(limit).offset(offset)
+            ).all()
+
+        return {"briefs": rows, "total": total, "limit": limit, "offset": offset}
 
     @app.get("/api/v1/briefs/{brief_id}", response_model=BriefDetailRead)
     def get_brief(
@@ -541,7 +629,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Brief not found",
             )
-
         # Security check: Never leak private brief existence to anonymous
         if not auth.is_admin:
             if not settings.public_enabled:
@@ -574,6 +661,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Brief not found",
             )
+        if any(value is not None for value in payload.model_dump().values()):
+            db_session.add(
+                BriefRevision(
+                    brief_id=brief.id,
+                    title=brief.title,
+                    summary=brief.summary,
+                    content_markdown=brief.content_markdown,
+                    claims_snapshot=[
+                        {
+                            "statement": claim.statement,
+                            "status": claim.status,
+                            "evidence_summary": claim.evidence_summary,
+                            "source_ids": [source.id for source in claim.sources],
+                        }
+                        for claim in brief.claims
+                    ],
+                )
+            )
         if payload.title is not None:
             brief.title = payload.title
         if payload.summary is not None:
@@ -592,6 +697,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             brief.visibility = payload.visibility
         if payload.cost_usd is not None:
             brief.cost_usd = payload.cost_usd
+            brief.cost_inr = cost_inr_for(payload.cost_usd, settings)
+            brief.cost_exchange_rate = settings.usd_to_inr_rate
         if payload.duration_seconds is not None:
             brief.duration_seconds = payload.duration_seconds
         if payload.model is not None:
@@ -625,50 +732,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db_session: SASession = Depends(get_db),
         auth: AuthContext = Depends(get_auth_context),
     ):
-        base = select(Brief)
+        visibility_filter = []
         if not auth.is_admin:
             if not settings.public_enabled:
                 return TaxonomiesRead(categories=[], tags=[])
-            base = base.where(Brief.visibility == "public")
+            visibility_filter = [Brief.visibility == "public"]
 
-        briefs = db_session.scalars(base).all()
-
-        cat_counts: dict[str, int] = {}
+        category_rows = db_session.execute(
+            select(Brief.category, func.count())
+            .where(*visibility_filter)
+            .group_by(Brief.category)
+            .order_by(func.count().desc())
+        ).all()
+        subcategory_rows = db_session.execute(
+            select(Brief.category, Brief.subcategory)
+            .where(*visibility_filter, Brief.subcategory != "")
+            .distinct()
+        ).all()
         cat_subcats: dict[str, set[str]] = {}
-        tag_counts: dict[str, int] = {}
-
-        for b in briefs:
-            cat = b.category or "General"
-            cat_counts[cat] = cat_counts.get(cat, 0) + 1
-            if b.subcategory:
-                cat_subcats.setdefault(cat, set()).add(b.subcategory)
-            for t in b.tags or []:
-                tag_counts[t] = tag_counts.get(t, 0) + 1
+        for cat, subcat in subcategory_rows:
+            cat_subcats.setdefault(cat or "General", set()).add(subcat)
 
         categories = [
             TaxonomyCategory(
-                name=cat,
+                name=cat or "General",
                 count=count,
-                subcategories=sorted(cat_subcats.get(cat, set())),
+                subcategories=sorted(cat_subcats.get(cat or "General", set())),
             )
-            for cat, count in sorted(cat_counts.items(), key=lambda x: -x[1])
+            for cat, count in category_rows
         ]
 
-        tags = [
-            TaxonomyTag(name=t, count=count)
-            for t, count in sorted(tag_counts.items(), key=lambda x: -x[1])
-        ]
+        tag_values = func.json_each(Brief.tags).table_valued("value").alias("taxonomy_tags")
+        tag_rows = db_session.execute(
+            select(tag_values.c.value, func.count())
+            .select_from(Brief)
+            .join(tag_values, true())
+            .where(*visibility_filter)
+            .group_by(tag_values.c.value)
+            .order_by(func.count().desc())
+        ).all()
+        tags = [TaxonomyTag(name=t, count=count) for t, count in tag_rows if t]
 
-        total_spend = sum(b.cost_usd for b in briefs if b.cost_usd is not None)
-        durations = [b.duration_seconds for b in briefs if b.duration_seconds is not None]
-        avg_duration = (sum(durations) / len(durations)) if durations else 0.0
+        total_spend, avg_duration, total_briefs = db_session.execute(
+            select(
+                func.coalesce(func.sum(Brief.cost_usd), 0.0),
+                func.coalesce(func.avg(Brief.duration_seconds), 0.0),
+                func.count(),
+            ).where(*visibility_filter)
+        ).one()
 
         return TaxonomiesRead(
             categories=categories,
             tags=tags,
-            total_spend_usd=round(total_spend, 6),
-            avg_duration_seconds=round(avg_duration, 2),
-            total_briefs=len(briefs),
+            total_spend_usd=round(float(total_spend), 6),
+            avg_duration_seconds=round(float(avg_duration), 2),
+            total_briefs=total_briefs,
         )
 
     # ---------------- Legacy / Backward Compatible Endpoints ----------------

@@ -471,3 +471,21 @@ def test_cost_and_execution_metadata(client):
     assert tax["total_spend_usd"] >= 0.00345
     assert tax["avg_duration_seconds"] > 0
     assert tax["total_briefs"] >= 1
+
+
+def test_system_status_and_db_health(client):
+    admin_headers = {"Cf-Access-Authenticated-User-Email": ADMIN_EMAIL}
+
+    status_response = client.get("/api/v1/system/status", headers=admin_headers)
+    assert status_response.status_code == 200
+    status_data = status_response.json()
+    assert status_data["status"] == "ok"
+    assert "briefs" in status_data["database"]
+    assert "jobs" in status_data["database"]
+
+    health_response = client.get("/api/v1/system/db-health", headers=admin_headers)
+    assert health_response.status_code == 200
+    health_data = health_response.json()
+    assert health_data["integrity_ok"] is True
+    assert health_data["foreign_keys_ok"] is True
+    assert health_data["page_count"] >= 1
