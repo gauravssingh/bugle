@@ -136,6 +136,13 @@ function formatRelativeTime(iso: string | null) {
   }
 }
 
+function estimateReadingTime(text?: string | null): string {
+  if (!text) return "2 min read";
+  const words = text.trim().split(/\s+/).length;
+  const minutes = Math.max(1, Math.ceil(words / 160));
+  return `${minutes} min read`;
+}
+
 function getOperatorInitials(email: string | null | undefined): string {
   if (!email) return "GS";
   const user = email.split("@")[0];
@@ -158,7 +165,7 @@ function IconHome({ className = "" }: { className?: string }) {
 
 function IconSearch({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
@@ -167,7 +174,7 @@ function IconSearch({ className = "" }: { className?: string }) {
 
 function IconStar({ filled = false, className = "" }: { filled?: boolean; className?: string }) {
   return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill={filled ? "#d29922" : "none"} stroke={filled ? "#d29922" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
@@ -175,7 +182,7 @@ function IconStar({ filled = false, className = "" }: { filled?: boolean; classN
 
 function IconArchive({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="21 8 21 21 3 21 3 8" />
       <rect x="1" y="3" width="22" height="5" />
       <line x1="10" y1="12" x2="14" y2="12" />
@@ -185,51 +192,48 @@ function IconArchive({ className = "" }: { className?: string }) {
 
 function IconPaper({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
     </svg>
   );
 }
 
 function IconBriefs({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <circle cx="4" cy="6" r="1" />
-      <circle cx="4" cy="12" r="1" />
-      <circle cx="4" cy="18" r="1" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
     </svg>
   );
 }
 
 function IconHistory({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
+      <polyline points="12 6 12 12 14 14" />
     </svg>
   );
 }
 
 function IconCoins({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="9" r="7" />
-      <path d="M15 9a7 7 0 1 1-6 6.9" />
-      <path d="M9 6v6" />
-      <path d="M6 9h6" />
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+      <path d="M7 6h1v4" />
+      <path d="m16.7 13.8.3.2" />
     </svg>
   );
 }
 
 function IconArrowRight({ className = "" }: { className?: string }) {
   return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12" />
       <polyline points="12 5 19 12 12 19" />
     </svg>
@@ -241,6 +245,18 @@ function IconBook({ className = "" }: { className?: string }) {
     <svg className={className} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
+
+function IconShare({ className = "" }: { className?: string }) {
+  return (
+    <svg className={className} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
     </svg>
   );
 }
@@ -277,6 +293,32 @@ export default function App() {
   });
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const modalSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
+  // Keyboard shortcut listener: ⌘ K to open Search Modal, Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setIsSearchModalOpen(false);
+        setShowProfileMenu(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Focus modal input on open
+  useEffect(() => {
+    if (isSearchModalOpen) {
+      setTimeout(() => {
+        modalSearchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isSearchModalOpen]);
 
   // Persist saved IDs
   useEffect(() => {
@@ -488,6 +530,31 @@ export default function App() {
     return briefs.filter((b) => b.category.toLowerCase() === archiveCategory.toLowerCase());
   }, [briefs, archiveCategory]);
 
+  const allTopics = useMemo(() => {
+    const curated = ["AI", "productivity", "markets", "climate", "semiconductor", "governance", "deep learning"];
+    const set = new Set<string>(curated);
+    briefs.forEach((b) => {
+      if (b.category && b.category.toLowerCase() !== "general") set.add(b.category);
+      if (b.subcategory) set.add(b.subcategory);
+      if (Array.isArray(b.tags)) {
+        b.tags.forEach((t) => {
+          if (t && t.length < 24) set.add(t);
+        });
+      }
+    });
+    return Array.from(set);
+  }, [briefs]);
+
+  const handleShare = (b: BriefSummary) => {
+    const url = `${window.location.origin}/#/brief/${b.id}`;
+    if (navigator.share) {
+      navigator.share({ title: b.title, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url);
+      alert("Brief link copied to clipboard");
+    }
+  };
+
   const operatorEmail = auth?.email || "gaurav.singh.86@gmail.com";
   const operatorInitials = getOperatorInitials(operatorEmail);
 
@@ -507,24 +574,37 @@ export default function App() {
     }
   }, [showProfileMenu]);
 
-  // Render Brief Card matching the reference design
+  // Render Brief Card in reading-friendly blog style
   const renderBriefCard = (b: BriefSummary, index: number) => {
     const isSaved = savedIds.includes(b.id);
-    const isNewest = index === 0;
+    const isFeatured = index === 0 && activeTab === "home";
+    const readDuration = estimateReadingTime(b.summary);
 
     return (
-      <li key={b.id} className="mobile-brief-card" onClick={() => openBrief(b.id)}>
-        {/* Card Header row: New pill, relative time, bookmark/more action */}
-        <div className="card-header-row">
-          <div className="card-header-left">
-            {isNewest && <span className="pill-new">✨ New</span>}
-            <span className="card-rel-time">{formatRelativeTime(b.published_at)}</span>
-          </div>
-          <div className="card-header-right">
+      <li
+        key={b.id}
+        className={`blog-card ${isFeatured ? "blog-card-featured" : "blog-card-standard"}`}
+        onClick={() => openBrief(b.id)}
+      >
+        {/* Card Header row: Category, read time, relative time, cost, actions */}
+        <div className="blog-card-meta-top">
+          <span className="blog-tag-badge">{b.category}</span>
+          {isFeatured && <span className="blog-featured-tag">★ Latest Dispatch</span>}
+          <span className="blog-dot-sep">·</span>
+          <span className="blog-read-time">{readDuration}</span>
+          <span className="blog-dot-sep">·</span>
+          <span className="blog-rel-time">{formatRelativeTime(b.published_at)}</span>
+          {b.cost_usd !== null && b.cost_usd !== undefined && (
+            <span className="blog-cost-pill" title={`Estimated generation cost: $${b.cost_usd}`}>
+              💰 {formatCost(b.cost_usd)}
+            </span>
+          )}
+
+          <div className="blog-card-actions">
             <button
               className={`btn-icon-action ${isSaved ? "saved" : ""}`}
               onClick={(e) => toggleSave(b.id, e)}
-              title={isSaved ? "Remove from bookmarks" : "Save bookmark"}
+              title={isSaved ? "Remove bookmark" : "Save bookmark"}
               aria-label="Save brief"
             >
               <IconStar filled={isSaved} />
@@ -533,60 +613,45 @@ export default function App() {
               className="btn-icon-action"
               onClick={(e) => {
                 e.stopPropagation();
-                if (navigator.share) {
-                  navigator.share({ title: b.title, url: `${window.location.origin}/#/brief/${b.id}` }).catch(() => {});
-                } else {
-                  navigator.clipboard.writeText(`${window.location.origin}/#/brief/${b.id}`);
-                  alert("Brief link copied to clipboard");
-                }
+                handleShare(b);
               }}
-              title="Share / More options"
-              aria-label="More options"
+              title="Share brief"
+              aria-label="Share brief"
             >
-              <span className="more-dots">⋯</span>
+              <IconShare />
             </button>
           </div>
         </div>
 
-        {/* Title and Cost */}
-        <div className="card-title-row">
-          <h3 className="card-title">{b.title}</h3>
-          {b.cost_usd !== null && b.cost_usd !== undefined && (
-            <span className="pill-cost" title={`Estimated generation cost: $${b.cost_usd}`}>
-              💰 {formatCost(b.cost_usd)}
+        {/* Title / Headline */}
+        {isFeatured ? (
+          <h2 className="blog-headline blog-headline-featured">{b.title}</h2>
+        ) : (
+          <h3 className="blog-headline blog-headline-standard">{b.title}</h3>
+        )}
+
+        {/* Summary Narrative Excerpt */}
+        {b.summary && (
+          <p className="blog-summary-excerpt">{b.summary}</p>
+        )}
+
+        {/* Card Footer: Model engine, Depth, Evidence stats, Read CTA */}
+        <div className="blog-card-footer">
+          <div className="blog-provenance-pills">
+            {b.model && (
+              <span className="badge-pill badge-model" title={`Engine: ${b.model}`}>
+                ⚡ {formatModel(b.model)}
+              </span>
+            )}
+            <span className={`badge-pill badge-depth badge-depth-${b.research_depth.toLowerCase()}`}>
+              {b.research_depth.toUpperCase()}
             </span>
-          )}
-        </div>
-
-        {/* 3-line truncated summary preview */}
-        {b.summary && <p className="card-summary-preview">{b.summary}</p>}
-
-        {/* Badges metadata row */}
-        <div className="card-badges-row">
-          {b.model && (
-            <span className="badge-pill badge-model" title={`Engine: ${b.model}`}>
-              ⚡ {formatModel(b.model)}
+            <span className="blog-evidence-pill">
+              {b.source_count} sources · {b.claim_count} claims
             </span>
-          )}
-          <span className="badge-pill badge-category">
-            {b.category}
-            {b.subcategory ? ` / ${b.subcategory}` : ""}
-          </span>
-          <span className={`badge-pill badge-depth badge-depth-${b.research_depth.toLowerCase()}`}>
-            {b.research_depth.toUpperCase()}
-          </span>
-          <span className={`badge-pill badge-vis badge-${b.visibility}`}>
-            {b.visibility === "private" ? "🔒 Private" : "🌐 Public"}
-          </span>
-        </div>
-
-        {/* Read Full Brief Footer Affordance */}
-        <div className="card-footer-action">
-          <span className="read-affordance">
-            <IconBook /> Read full brief
-          </span>
-          <span className="arrow-affordance">
-            <IconArrowRight />
+          </div>
+          <span className="blog-read-cta">
+            Read investigation <IconArrowRight />
           </span>
         </div>
       </li>
@@ -742,21 +807,76 @@ export default function App() {
                         {auth?.is_admin ? "Operator (Admin)" : "Public View"}
                       </span>
                     </div>
+                    <button
+                      className="dropdown-close-btn"
+                      onClick={() => setShowProfileMenu(false)}
+                      aria-label="Close menu"
+                    >
+                      ✕
+                    </button>
                   </div>
+
+                  {/* Aggregate Stat Grid (Moved from home feed for reading clarity) */}
+                  <div className="profile-stats-grid">
+                    <div className="profile-stat-box">
+                      <span className="profile-stat-number">{briefs.length}</span>
+                      <span className="profile-stat-label">Briefs</span>
+                    </div>
+                    <div className="profile-stat-box highlight-spend">
+                      <span className="profile-stat-number">${totalSpend.toFixed(3)}</span>
+                      <span className="profile-stat-label">Total Spend</span>
+                    </div>
+                    <div className="profile-stat-box">
+                      <span className="profile-stat-number">{savedIds.length}</span>
+                      <span className="profile-stat-label">Saved</span>
+                    </div>
+                  </div>
+
                   <div className="profile-dropdown-body">
                     <div className="dropdown-row">
                       <span className="dropdown-label">Engine</span>
-                      <span className="dropdown-val">Hermes Agentic Core</span>
+                      <span className="dropdown-val">⚡ Hermes Agentic Core</span>
                     </div>
                     <div className="dropdown-row">
-                      <span className="dropdown-label">Investigations</span>
-                      <span className="dropdown-val">{briefs.length} briefs</span>
+                      <span className="dropdown-label">Pipeline</span>
+                      <span className="dropdown-val">Multi-source Claims Audit</span>
                     </div>
                     <div className="dropdown-row">
-                      <span className="dropdown-label">Total Spend</span>
-                      <span className="dropdown-val highlight-gold">${totalSpend.toFixed(3)}</span>
+                      <span className="dropdown-label">Network</span>
+                      <span className="dropdown-val">Cloudflare Access Tunnel</span>
                     </div>
                   </div>
+
+                  <div className="profile-quick-nav">
+                    <button
+                      className="profile-nav-action-btn"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setIsSearchModalOpen(true);
+                      }}
+                    >
+                      <IconSearch className="action-icon" /> Search Topics & Tags
+                    </button>
+                    <button
+                      className="profile-nav-action-btn"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        switchTab("saved");
+                      }}
+                    >
+                      <IconStar filled={false} className="action-icon" /> Saved Bookmarks ({savedIds.length})
+                    </button>
+                    <button
+                      className="profile-nav-action-btn"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        switchTab("archive");
+                      }}
+                    >
+                      <IconArchive className="action-icon" /> Research Archive
+                    </button>
+                  </div>
+
                   <div className="profile-dropdown-footer">
                     <span>Signed in via Cloudflare Access</span>
                   </div>
@@ -1056,137 +1176,139 @@ export default function App() {
             {/* TAB: HOME */}
             {activeTab === "home" && (
               <section className="home-view">
-                {/* Search Bar & Suggestion Chips */}
-                <div className="search-section">
-                  <div className="search-input-wrapper">
-                    <span className="search-icon">
-                      <IconSearch />
-                    </span>
-                    <input
-                      ref={searchInputRef}
-                      type="text"
-                      className="search-input"
-                      placeholder="Search research briefs..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                    {search ? (
-                      <button className="search-clear-btn" onClick={() => setSearch("")}>
-                        ✕
-                      </button>
-                    ) : (
-                      <span className="search-kbd-chip">⌘ K</span>
-                    )}
+                {/* Desktop-only Overview: Persistent Search, Quick-Nav Tiles, and Aggregate Stat Cards */}
+                <div className="desktop-only-overview">
+                  <div className="search-section">
+                    <div className="search-input-wrapper">
+                      <span className="search-icon">
+                        <IconSearch />
+                      </span>
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        className="search-input"
+                        placeholder="Search research briefs..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                      {search ? (
+                        <button className="search-clear-btn" onClick={() => setSearch("")}>
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="search-kbd-chip">⌘ K</span>
+                      )}
+                    </div>
+
+                    {/* Suggestion Chips */}
+                    <div className="suggestion-chips-row">
+                      <span className="suggestion-label">Try:</span>
+                      {SUGGESTIONS.map((s) => (
+                        <button
+                          key={s}
+                          className={`chip-button ${search.toLowerCase() === s.toLowerCase() ? "active" : ""}`}
+                          onClick={() => {
+                            setSearch(s);
+                            recordSearch(s);
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Suggestion Chips */}
-                  <div className="suggestion-chips-row">
-                    <span className="suggestion-label">Try:</span>
-                    {SUGGESTIONS.map((s) => (
-                      <button
-                        key={s}
-                        className={`chip-button ${search.toLowerCase() === s.toLowerCase() ? "active" : ""}`}
-                        onClick={() => {
-                          setSearch(s);
-                          recordSearch(s);
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                  {/* 4 Quick-Nav Navigation Tiles */}
+                  <div className="quick-nav-grid">
+                    <div
+                      className="quick-nav-tile tile-papers"
+                      onClick={() => {
+                        setSearch("paper");
+                        switchTab("search");
+                      }}
+                    >
+                      <div className="tile-icon-box icon-papers">
+                        <IconPaper />
+                      </div>
+                      <div className="tile-content">
+                        <h4 className="tile-title">Papers</h4>
+                        <p className="tile-subtitle">Research papers</p>
+                      </div>
+                    </div>
+
+                    <div
+                      className="quick-nav-tile tile-briefs"
+                      onClick={() => switchTab("archive")}
+                    >
+                      <div className="tile-icon-box icon-briefs">
+                        <IconBriefs />
+                      </div>
+                      <div className="tile-content">
+                        <h4 className="tile-title">Briefs</h4>
+                        <p className="tile-subtitle">Summaries & insights</p>
+                      </div>
+                    </div>
+
+                    <div
+                      className="quick-nav-tile tile-saved"
+                      onClick={() => switchTab("saved")}
+                    >
+                      <div className="tile-icon-box icon-saved">
+                        <IconStar filled={false} />
+                      </div>
+                      <div className="tile-content">
+                        <h4 className="tile-title">Saved</h4>
+                        <p className="tile-subtitle">Your bookmarks ({savedIds.length})</p>
+                      </div>
+                    </div>
+
+                    <div
+                      className="quick-nav-tile tile-history"
+                      onClick={() => switchTab("search")}
+                    >
+                      <div className="tile-icon-box icon-history">
+                        <IconHistory />
+                      </div>
+                      <div className="tile-content">
+                        <h4 className="tile-title">History</h4>
+                        <p className="tile-subtitle">Past searches</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Aggregate Stat Cards */}
+                  <div className="stat-cards-grid">
+                    <div className="stat-card">
+                      <div className="stat-card-icon icon-briefs-stat">
+                        <IconPaper />
+                      </div>
+                      <div className="stat-card-content">
+                        <span className="stat-card-value">{briefs.length} Briefs</span>
+                        <span className="stat-card-label">Total researched</span>
+                      </div>
+                    </div>
+
+                    <div className="stat-card">
+                      <div className="stat-card-icon icon-coins-stat">
+                        <IconCoins />
+                      </div>
+                      <div className="stat-card-content">
+                        <span className="stat-card-value">${totalSpend.toFixed(3)}</span>
+                        <span className="stat-card-label">Total Spend</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* 4 Quick-Nav Navigation Tiles */}
-                <div className="quick-nav-grid">
-                  <div
-                    className="quick-nav-tile tile-papers"
-                    onClick={() => {
-                      setSearch("paper");
-                      switchTab("search");
-                    }}
-                  >
-                    <div className="tile-icon-box icon-papers">
-                      <IconPaper />
-                    </div>
-                    <div className="tile-content">
-                      <h4 className="tile-title">Papers</h4>
-                      <p className="tile-subtitle">Research papers</p>
-                    </div>
-                  </div>
-
-                  <div
-                    className="quick-nav-tile tile-briefs"
-                    onClick={() => switchTab("archive")}
-                  >
-                    <div className="tile-icon-box icon-briefs">
-                      <IconBriefs />
-                    </div>
-                    <div className="tile-content">
-                      <h4 className="tile-title">Briefs</h4>
-                      <p className="tile-subtitle">Summaries & insights</p>
-                    </div>
-                  </div>
-
-                  <div
-                    className="quick-nav-tile tile-saved"
-                    onClick={() => switchTab("saved")}
-                  >
-                    <div className="tile-icon-box icon-saved">
-                      <IconStar filled={false} />
-                    </div>
-                    <div className="tile-content">
-                      <h4 className="tile-title">Saved</h4>
-                      <p className="tile-subtitle">Your bookmarks ({savedIds.length})</p>
-                    </div>
-                  </div>
-
-                  <div
-                    className="quick-nav-tile tile-history"
-                    onClick={() => switchTab("search")}
-                  >
-                    <div className="tile-icon-box icon-history">
-                      <IconHistory />
-                    </div>
-                    <div className="tile-content">
-                      <h4 className="tile-title">History</h4>
-                      <p className="tile-subtitle">Past searches</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Recent Investigations Feed Header & Stats */}
-                <div className="section-header-row">
+                {/* Section Header Row (Visible on Desktop) */}
+                <div className="section-header-row feed-header-row">
                   <div>
                     <h2 className="section-heading">Recent Investigations</h2>
-                    <p className="section-subheading">Showing latest research outputs</p>
+                    <p className="section-subheading">Latest research outputs synthesized by Hermes</p>
                   </div>
                   <button className="view-all-link" onClick={() => switchTab("archive")}>
-                    View all →
+                    View all archive →
                   </button>
-                </div>
-
-                {/* Aggregate Stat Cards */}
-                <div className="stat-cards-grid">
-                  <div className="stat-card">
-                    <div className="stat-card-icon icon-briefs-stat">
-                      <IconPaper />
-                    </div>
-                    <div className="stat-card-content">
-                      <span className="stat-card-value">{briefs.length} Briefs</span>
-                      <span className="stat-card-label">Total researched</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-card">
-                    <div className="stat-card-icon icon-coins-stat">
-                      <IconCoins />
-                    </div>
-                    <div className="stat-card-content">
-                      <span className="stat-card-value">${totalSpend.toFixed(3)}</span>
-                      <span className="stat-card-label">Total Spend</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Feed Cards List */}
@@ -1201,7 +1323,7 @@ export default function App() {
                   </div>
                 )}
 
-                <ul className="briefs-feed-list">
+                <ul className="blog-feed-list">
                   {briefs.map((b, idx) => renderBriefCard(b, idx))}
                 </ul>
               </section>
@@ -1298,7 +1420,7 @@ export default function App() {
                   </div>
                 )}
 
-                <ul className="briefs-feed-list">
+                <ul className="blog-feed-list">
                   {briefs.map((b, idx) => renderBriefCard(b, idx))}
                 </ul>
               </section>
@@ -1330,7 +1452,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <ul className="briefs-feed-list">
+                  <ul className="blog-feed-list">
                     {savedBriefs.map((b, idx) => renderBriefCard(b, idx))}
                   </ul>
                 )}
@@ -1368,7 +1490,7 @@ export default function App() {
                     <p className="empty-desc">Try choosing another category or clearing filters.</p>
                   </div>
                 ) : (
-                  <ul className="briefs-feed-list">
+                  <ul className="blog-feed-list">
                     {archiveBriefs.map((b, idx) => renderBriefCard(b, idx))}
                   </ul>
                 )}
@@ -1379,47 +1501,203 @@ export default function App() {
       </main>
     </div>
 
-    {/* Persistent Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
-        <button
-          className={`bottom-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
-          onClick={() => switchTab("home")}
-          aria-label="Home"
+    {/* Search & Topic Exploration Modal Sheet (Mobile Bottom-Nav & ⌘ K) */}
+    {isSearchModalOpen && (
+      <div className="search-modal-overlay" onClick={() => setIsSearchModalOpen(false)}>
+        <div
+          className="search-modal-sheet"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Search and Explore Investigations"
         >
-          <IconHome className="nav-svg" />
-          <span className="nav-label">Home</span>
-        </button>
+          <div className="modal-header">
+            <div className="modal-title-row">
+              <h3 className="modal-title">Search & Explore</h3>
+              <button
+                className="modal-close-btn"
+                onClick={() => setIsSearchModalOpen(false)}
+                aria-label="Close search"
+              >
+                ✕
+              </button>
+            </div>
 
-        <button
-          className={`bottom-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
-          onClick={() => switchTab("search")}
-          aria-label="Search"
-        >
-          <IconSearch className="nav-svg" />
-          <span className="nav-label">Search</span>
-        </button>
+            {/* Search input field */}
+            <div className="modal-search-wrapper">
+              <span className="modal-search-icon">
+                <IconSearch />
+              </span>
+              <input
+                ref={modalSearchInputRef}
+                type="text"
+                className="modal-search-input"
+                placeholder="Search keywords, topics, claims..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button className="search-clear-btn" onClick={() => setSearch("")}>
+                  ✕
+                </button>
+              )}
+            </div>
 
-        <button
-          className={`bottom-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
-          onClick={() => switchTab("saved")}
-          aria-label="Saved"
-        >
-          <div className="nav-icon-wrapper">
-            <IconStar filled={activeTab === "saved"} className="nav-svg" />
-            {savedIds.length > 0 && <span className="nav-badge-count">{savedIds.length}</span>}
+            {/* Topic & Tag Pills */}
+            <div className="modal-topics-section">
+              <span className="modal-section-label">Browse Topics:</span>
+              <div className="modal-tags-row">
+                {allTopics.map((tag) => {
+                  const isSelected = search.toLowerCase() === tag.toLowerCase();
+                  return (
+                    <button
+                      key={tag}
+                      className={`modal-tag-chip ${isSelected ? "active" : ""}`}
+                      onClick={() => {
+                        const nextVal = isSelected ? "" : tag;
+                        setSearch(nextVal);
+                        if (nextVal) recordSearch(nextVal);
+                      }}
+                    >
+                      #{tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && !search && (
+              <div className="modal-recent-section">
+                <div className="modal-recent-header">
+                  <span className="modal-section-label">Recent Searches</span>
+                  <button
+                    className="clear-history-btn"
+                    onClick={() => {
+                      setRecentSearches([]);
+                      localStorage.removeItem("bugle_recent_searches");
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="modal-recent-chips">
+                  {recentSearches.map((term) => (
+                    <button
+                      key={term}
+                      className="recent-term-chip"
+                      onClick={() => {
+                        setSearch(term);
+                        recordSearch(term);
+                      }}
+                    >
+                      <IconHistory className="recent-icon" /> {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <span className="nav-label">Saved</span>
-        </button>
 
-        <button
-          className={`bottom-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
-          onClick={() => switchTab("archive")}
-          aria-label="Archive"
-        >
-          <IconArchive className="nav-svg" />
-          <span className="nav-label">Archive</span>
-        </button>
-      </nav>
-    </div>
-  );
+          {/* Live Search Results List */}
+          <div className="modal-results-container">
+            <div className="modal-results-header">
+              <span className="modal-results-count">
+                {search ? `Results for "${search}" (${briefs.length})` : `All Investigations (${briefs.length})`}
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="loading-state">Searching archive…</div>
+            ) : briefs.length === 0 ? (
+              <div className="empty-state-card">
+                <p className="empty-title">No matching investigations</p>
+                <p className="empty-desc">Try another keyword or select a topic chip above.</p>
+              </div>
+            ) : (
+              <div className="modal-results-list">
+                {briefs.map((b) => (
+                  <div
+                    key={b.id}
+                    className="modal-result-item"
+                    onClick={() => {
+                      setIsSearchModalOpen(false);
+                      openBrief(b.id);
+                    }}
+                  >
+                    <div className="modal-item-top">
+                      <span className="blog-tag-badge">{b.category}</span>
+                      <span className="modal-item-time">{formatRelativeTime(b.published_at)}</span>
+                      {b.cost_usd !== null && b.cost_usd !== undefined && (
+                        <span className="modal-item-cost">${formatCost(b.cost_usd)}</span>
+                      )}
+                    </div>
+                    <h4 className="modal-item-title">{b.title}</h4>
+                    {b.summary && (
+                      <p className="modal-item-summary">{b.summary}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Persistent Mobile Bottom Navigation Bar */}
+    <nav className="mobile-bottom-nav" aria-label="Bottom Navigation">
+      <button
+        className={`bottom-nav-item ${activeTab === "home" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
+        onClick={() => {
+          setIsSearchModalOpen(false);
+          switchTab("home");
+        }}
+        aria-label="Home"
+      >
+        <IconHome className="nav-svg" />
+        <span className="nav-label">Home</span>
+      </button>
+
+      <button
+        className={`bottom-nav-item ${isSearchModalOpen ? "active" : ""}`}
+        onClick={() => {
+          setIsSearchModalOpen(true);
+          setTimeout(() => modalSearchInputRef.current?.focus(), 80);
+        }}
+        aria-label="Search"
+      >
+        <IconSearch className="nav-svg" />
+        <span className="nav-label">Search</span>
+      </button>
+
+      <button
+        className={`bottom-nav-item ${activeTab === "saved" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
+        onClick={() => {
+          setIsSearchModalOpen(false);
+          switchTab("saved");
+        }}
+        aria-label="Saved"
+      >
+        <div className="nav-icon-wrapper">
+          <IconStar filled={activeTab === "saved"} className="nav-svg" />
+          {savedIds.length > 0 && <span className="nav-badge-count">{savedIds.length}</span>}
+        </div>
+        <span className="nav-label">Saved</span>
+      </button>
+
+      <button
+        className={`bottom-nav-item ${activeTab === "archive" && !currentBriefId && !isSearchModalOpen ? "active" : ""}`}
+        onClick={() => {
+          setIsSearchModalOpen(false);
+          switchTab("archive");
+        }}
+        aria-label="Archive"
+      >
+        <IconArchive className="nav-svg" />
+        <span className="nav-label">Archive</span>
+      </button>
+    </nav>
+  </div>
+);
 }
