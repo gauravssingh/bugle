@@ -608,78 +608,80 @@ export default function App() {
           <p className="sidebar-tagline">Autonomous Research Intelligence</p>
         </div>
 
-        <nav className="sidebar-nav">
-          <button
-            className={`sidebar-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
-            onClick={() => switchTab("home")}
-          >
-            <IconHome className="sidebar-nav-icon" />
-            <span className="sidebar-nav-label">Home & Feed</span>
-          </button>
+        <div className="sidebar-content-body">
+          <nav className="sidebar-nav">
+            <button
+              className={`sidebar-nav-item ${activeTab === "home" && !currentBriefId ? "active" : ""}`}
+              onClick={() => switchTab("home")}
+            >
+              <IconHome className="sidebar-nav-icon" />
+              <span className="sidebar-nav-label">Home & Feed</span>
+            </button>
 
-          <button
-            className={`sidebar-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
-            onClick={() => switchTab("search")}
-          >
-            <IconSearch className="sidebar-nav-icon" />
-            <span className="sidebar-nav-label">Search Archive</span>
-          </button>
+            <button
+              className={`sidebar-nav-item ${activeTab === "search" && !currentBriefId ? "active" : ""}`}
+              onClick={() => switchTab("search")}
+            >
+              <IconSearch className="sidebar-nav-icon" />
+              <span className="sidebar-nav-label">Search Archive</span>
+            </button>
 
-          <button
-            className={`sidebar-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
-            onClick={() => switchTab("saved")}
-          >
-            <div className="sidebar-icon-wrap">
-              <IconStar filled={activeTab === "saved"} className="sidebar-nav-icon" />
+            <button
+              className={`sidebar-nav-item ${activeTab === "saved" && !currentBriefId ? "active" : ""}`}
+              onClick={() => switchTab("saved")}
+            >
+              <div className="sidebar-icon-wrap">
+                <IconStar filled={activeTab === "saved"} className="sidebar-nav-icon" />
+              </div>
+              <span className="sidebar-nav-label">Saved Bookmarks</span>
+              {savedIds.length > 0 && <span className="sidebar-badge-pill">{savedIds.length}</span>}
+            </button>
+
+            <button
+              className={`sidebar-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
+              onClick={() => switchTab("archive")}
+            >
+              <IconArchive className="sidebar-nav-icon" />
+              <span className="sidebar-nav-label">Full Catalogue</span>
+              <span className="sidebar-badge-muted">{briefs.length}</span>
+            </button>
+          </nav>
+
+          {/* Sidebar Topics Taxonomy */}
+          <div className="sidebar-section">
+            <span className="sidebar-section-title">Explore Topics</span>
+            <div className="sidebar-topics-grid">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  className={`sidebar-topic-btn ${activeTab === "archive" && archiveCategory === cat ? "active" : ""}`}
+                  onClick={() => {
+                    setArchiveCategory(cat);
+                    switchTab("archive");
+                  }}
+                >
+                  {cat === "all" ? "All Topics" : cat}
+                </button>
+              ))}
             </div>
-            <span className="sidebar-nav-label">Saved Bookmarks</span>
-            {savedIds.length > 0 && <span className="sidebar-badge-pill">{savedIds.length}</span>}
-          </button>
-
-          <button
-            className={`sidebar-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
-            onClick={() => switchTab("archive")}
-          >
-            <IconArchive className="sidebar-nav-icon" />
-            <span className="sidebar-nav-label">Full Catalogue</span>
-            <span className="sidebar-badge-muted">{briefs.length}</span>
-          </button>
-        </nav>
-
-        {/* Sidebar Topics Taxonomy */}
-        <div className="sidebar-section">
-          <span className="sidebar-section-title">Explore Topics</span>
-          <div className="sidebar-topics-grid">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                className={`sidebar-topic-btn ${activeTab === "archive" && archiveCategory === cat ? "active" : ""}`}
-                onClick={() => {
-                  setArchiveCategory(cat);
-                  switchTab("archive");
-                }}
-              >
-                {cat === "all" ? "All Topics" : cat}
-              </button>
-            ))}
           </div>
-        </div>
 
-        {/* Sidebar System & Intelligence Metrics */}
-        <div className="sidebar-status-box">
-          <div className="sidebar-status-row">
-            <span className="status-dot online" />
-            <span className="sidebar-status-engine">Hermes Core Online</span>
-          </div>
-          <div className="sidebar-metrics-row">
-            <div className="sidebar-metric-item">
-              <span className="sidebar-metric-label">Spend</span>
-              <span className="sidebar-metric-val highlight-gold">${totalSpend.toFixed(3)}</span>
+          {/* Sidebar System & Intelligence Metrics */}
+          <div className="sidebar-status-box">
+            <div className="sidebar-status-row">
+              <span className="status-dot online" />
+              <span className="sidebar-status-engine">Hermes Core Online</span>
             </div>
-            <div className="sidebar-metric-divider" />
-            <div className="sidebar-metric-item">
-              <span className="sidebar-metric-label">Briefs</span>
-              <span className="sidebar-metric-val">{briefs.length}</span>
+            <div className="sidebar-metrics-row">
+              <div className="sidebar-metric-item">
+                <span className="sidebar-metric-label">Spend</span>
+                <span className="sidebar-metric-val highlight-gold">${totalSpend.toFixed(3)}</span>
+              </div>
+              <div className="sidebar-metric-divider" />
+              <div className="sidebar-metric-item">
+                <span className="sidebar-metric-label">Briefs</span>
+                <span className="sidebar-metric-val">{briefs.length}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -1710,32 +1710,35 @@ html, body {
    ========================================================================== */
 @media (min-width: 900px) {
   .app-container {
-    display: flex;
-    flex-direction: row;
+    display: block;
     min-height: 100vh;
     width: 100%;
+    position: relative;
+    overflow-x: visible;
   }
 
-  /* Desktop Navigation Sidebar */
+  /* Desktop Navigation Sidebar: FIXED to viewport, NEVER scrolls with page */
   .desktop-sidebar {
     display: flex;
     flex-direction: column;
     width: 270px;
-    min-width: 270px;
-    max-width: 270px;
     height: 100vh;
-    position: sticky;
+    height: 100dvh;
+    position: fixed;
     top: 0;
+    left: 0;
+    bottom: 0;
     background: var(--bg-secondary);
     border-right: 1px solid var(--border);
     padding: 24px 18px 20px;
     box-sizing: border-box;
-    z-index: 90;
-    overflow-y: auto;
+    z-index: 100;
+    overflow: hidden;
   }
 
   .sidebar-top {
-    margin-bottom: 22px;
+    flex-shrink: 0;
+    margin-bottom: 20px;
   }
 
   .sidebar-brand {
@@ -1770,11 +1773,36 @@ html, body {
     margin: 4px 0 0;
   }
 
+  /* Scrollable middle body: topics & nav scroll independently if screen is short */
+  .sidebar-content-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+  }
+
+  .sidebar-content-body::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .sidebar-content-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar-content-body::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
   .sidebar-nav {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    margin-bottom: 22px;
+    flex-shrink: 0;
   }
 
   .sidebar-nav-item {
@@ -1850,7 +1878,7 @@ html, body {
   }
 
   .sidebar-section {
-    margin-bottom: 20px;
+    flex-shrink: 0;
   }
 
   .sidebar-section-title {
@@ -1900,7 +1928,6 @@ html, body {
 
   .sidebar-status-box {
     margin-top: auto;
-    margin-bottom: 16px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -1908,6 +1935,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .sidebar-status-row {
@@ -1957,12 +1985,16 @@ html, body {
     background: var(--border);
   }
 
+  /* Profile footer pinned at bottom, never cut off */
   .sidebar-profile-footer {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 10px;
     padding-top: 14px;
+    margin-top: 14px;
     border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
   }
 
   .sidebar-avatar {
@@ -2001,6 +2033,17 @@ html, body {
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  /* Main content area shifted right by the fixed sidebar width */
+  .app-main-area {
+    margin-left: 270px;
+    width: calc(100% - 270px);
+    min-height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
   }
 
   /* Hide mobile elements on desktop */
