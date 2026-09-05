@@ -38,6 +38,8 @@ from .schemas import (
     JobUpdate,
     PostList,
     PostRead,
+    QuickIngestRequest,
+    QuickIngestResponse,
     SourceRead,
     TaxonomiesRead,
     TaxonomyCategory,
@@ -242,6 +244,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             base.order_by(ResearchJob.created_at.desc()).limit(limit).offset(offset)
         ).all()
         return {"jobs": rows, "total": total}
+
+    @app.post(
+        "/api/v1/ingest/quick",
+        response_model=QuickIngestResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def quick_ingest(
+        payload: QuickIngestRequest,
+        db_session: SASession = Depends(get_db),
+        _: AuthContext = Depends(require_admin_or_service),
+    ):
+        raw_topic = (
+            payload.title
+            or payload.url
+            or (payload.text[:120] if payload.text else "")
+        ).strip()
+        if not raw_topic:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Must provide at least a title, url, or text for quick ingest.",
+            )
+
+        job_id = generate_id("job")
+        job = ResearchJob(
+            id=job_id,
+            topic=raw_topic,
+            research_type=payload.research_type,
+            research_depth=payload.research_depth,
+            status="pending",
+            execution_meta={
+                "source": "apple_shortcut",
+                "input_url": payload.url,
+                "input_text": payload.text,
+            },
+        )
+        db_session.add(job)
+        db_session.commit()
+        db_session.refresh(job)
+
+        base_url = "https://bugle.gauravs-apps.in"
+        return QuickIngestResponse(
+            status="queued",
+            job_id=job.id,
+            topic=job.topic,
+            research_depth=job.research_depth,
+            view_url=f"{base_url}/#/brief/{job.id}",
+            message="Research task queued for Hermes investigation.",
+        )
 
     # ---------------- Research Briefs API ----------------
 

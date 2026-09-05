@@ -397,3 +397,24 @@ def test_legacy_posts_compatibility(client):
     posts = r.json()["posts"]
     assert len(posts) >= 1
     assert posts[0]["title"] == "Legacy Test Entry"
+
+
+def test_quick_ingest(client):
+    service_headers = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
+
+    r = client.post(
+        "/api/v1/ingest/quick",
+        json={
+            "url": "https://arxiv.org/abs/2501.12948",
+            "title": "DeepSeek R1 Paper",
+            "text": "Check claims regarding GRPO memory savings",
+            "research_depth": "deep",
+        },
+        headers=service_headers,
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert data["status"] == "queued"
+    assert data["research_depth"] == "deep"
+    assert "job_" in data["job_id"]
+    assert "bugle.gauravs-apps.in" in data["view_url"]

@@ -52,6 +52,23 @@ class JobListRead(BaseModel):
     total: int
 
 
+class QuickIngestRequest(BaseModel):
+    url: str | None = None
+    title: str | None = None
+    text: str | None = None
+    research_depth: str = Field(default="standard", max_length=50)
+    research_type: str = Field(default="general", max_length=50)
+
+
+class QuickIngestResponse(BaseModel):
+    status: str
+    job_id: str
+    topic: str
+    research_depth: str
+    view_url: str
+    message: str
+
+
 # ---------------- Sources & Claims ----------------
 
 class SourceCreate(BaseModel):
