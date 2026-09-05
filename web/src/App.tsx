@@ -491,6 +491,22 @@ export default function App() {
   const operatorEmail = auth?.email || "gaurav.singh.86@gmail.com";
   const operatorInitials = getOperatorInitials(operatorEmail);
 
+  // Profile popover state & click outside listener
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    }
+    if (showProfileMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showProfileMenu]);
+
   // Render Brief Card matching the reference design
   const renderBriefCard = (b: BriefSummary, index: number) => {
     const isSaved = savedIds.includes(b.id);
@@ -580,27 +596,64 @@ export default function App() {
   return (
     <div className="app-container">
       <main className="wrap">
-        {/* Compact App Header with Operator Profile Chip */}
+        {/* Compact App Header with Operator Profile Avatar */}
         <header className="mobile-header">
           <div className="header-brand">
-            <h1 className="brand-logo">
-              <a href="#" onClick={goHome} className="brand-link">
-                🎺 Bugle
-              </a>
-            </h1>
-            <p className="brand-tagline">Personal Research Intelligence</p>
-            <p className="brand-subtext">POWERED BY HERMES • ARCHIVE • INSIGHTS</p>
+            <div className="brand-title-group">
+              <h1 className="brand-logo">
+                <a href="#" onClick={goHome} className="brand-link">
+                  🎺 Bugle
+                </a>
+              </h1>
+              <span className="brand-badge">Research</span>
+            </div>
+            <p className="brand-tagline">Autonomous Research Intelligence</p>
           </div>
 
-          <div className="operator-chip" title={`Authenticated as ${operatorEmail}`}>
-            <div className="operator-avatar">{operatorInitials}</div>
-            <div className="operator-info">
-              <span className="operator-email">{operatorEmail}</span>
-              <span className="operator-role">
-                <span className="status-dot online" />
-                {auth?.is_admin ? "Operator" : "Public View"}
-              </span>
-            </div>
+          <div className="header-actions" ref={profileRef}>
+            <button
+              className={`operator-avatar-btn ${showProfileMenu ? "active" : ""}`}
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              aria-label={`Operator profile: ${operatorEmail}`}
+              title={`Operator: ${operatorEmail} (${auth?.is_admin ? "Admin" : "Public"})`}
+            >
+              <span className="avatar-initials">{operatorInitials}</span>
+              <span className="avatar-status-dot online" />
+            </button>
+
+            {showProfileMenu && (
+              <div className="profile-dropdown-card">
+                <div className="profile-dropdown-header">
+                  <div className="dropdown-avatar">{operatorInitials}</div>
+                  <div className="dropdown-meta">
+                    <span className="dropdown-email" title={operatorEmail}>
+                      {operatorEmail}
+                    </span>
+                    <span className="dropdown-role">
+                      <span className="status-dot online" />
+                      {auth?.is_admin ? "Operator (Admin)" : "Public View"}
+                    </span>
+                  </div>
+                </div>
+                <div className="profile-dropdown-body">
+                  <div className="dropdown-row">
+                    <span className="dropdown-label">Engine</span>
+                    <span className="dropdown-val">Hermes Agentic Core</span>
+                  </div>
+                  <div className="dropdown-row">
+                    <span className="dropdown-label">Investigations</span>
+                    <span className="dropdown-val">{briefs.length} briefs</span>
+                  </div>
+                  <div className="dropdown-row">
+                    <span className="dropdown-label">Total Spend</span>
+                    <span className="dropdown-val highlight-gold">${totalSpend.toFixed(3)}</span>
+                  </div>
+                </div>
+                <div className="profile-dropdown-footer">
+                  <span>Signed in via Cloudflare Access</span>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
