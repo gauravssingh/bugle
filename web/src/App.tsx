@@ -24,6 +24,10 @@ type BriefSummary = {
   research_depth: string;
   source_count: number;
   claim_count: number;
+  cost_usd: number | null;
+  duration_seconds: number | null;
+  model: string | null;
+  total_tokens: number | null;
   published_at: string;
   created_at: string;
 };
@@ -53,11 +57,41 @@ type Claim = {
 
 type BriefDetail = BriefSummary & {
   content_markdown: string;
+  token_usage: {
+    input?: number;
+    output?: number;
+    reasoning?: number;
+    total?: number;
+  } | null;
+  execution_meta: Record<string, any>;
   research_started_at: string | null;
   research_completed_at: string | null;
   sources: Source[];
   claims: Claim[];
 };
+
+function formatCost(usd: number | null | undefined) {
+  if (usd === null || usd === undefined) return null;
+  if (usd === 0) return "$0.00";
+  if (usd < 0.0001) return "<$0.0001";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(3)}`;
+}
+
+function formatDuration(sec: number | null | undefined) {
+  if (sec === null || sec === undefined) return null;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const mins = Math.floor(sec / 60);
+  const rem = Math.round(sec % 60);
+  return `${mins}m ${rem}s`;
+}
+
+function formatModel(model: string | null | undefined) {
+  if (!model) return null;
+  const parts = model.split("/");
+  const name = parts[parts.length - 1];
+  return name.replace(/-0731|-exp/g, "");
+}
 
 function formatTime(iso: string | null) {
   if (!iso) return "Unknown";
@@ -212,6 +246,8 @@ export default function App() {
     window.location.hash = "";
   };
 
+  const totalSpend = briefs.reduce((acc, b) => acc + (b.cost_usd || 0), 0);
+
   return (
     <main className="wrap">
       {/* Header */}
@@ -251,6 +287,21 @@ export default function App() {
             <>
               <header className="detail-header">
                 <div className="badge-row">
+                  {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                    <span className="badge badge-cost" title={`Cost: $${currentBrief.cost_usd}`}>
+                      💰 {formatCost(currentBrief.cost_usd)}
+                    </span>
+                  )}
+                  {currentBrief.duration_seconds && (
+                    <span className="badge badge-duration" title={`Duration: ${currentBrief.duration_seconds}s`}>
+                      ⏱️ {formatDuration(currentBrief.duration_seconds)}
+                    </span>
+                  )}
+                  {currentBrief.model && (
+                    <span className="badge badge-model" title={`Model: ${currentBrief.model}`}>
+                      ⚡ {formatModel(currentBrief.model)}
+                    </span>
+                  )}
                   <span className="badge badge-category">
                     {currentBrief.category}
                     {currentBrief.subcategory ? ` / ${currentBrief.subcategory}` : ""}
@@ -281,6 +332,39 @@ export default function App() {
                     {currentBrief.source_count} Sources · {currentBrief.claim_count} Claims
                   </span>
                 </div>
+                {currentBrief.cost_usd !== null && currentBrief.cost_usd !== undefined && (
+                  <div className="provenance-item">
+                    <span className="provenance-label">Generation Cost</span>
+                    <span className="provenance-value" style={{ color: "var(--success)" }}>
+                      💰 ${currentBrief.cost_usd.toFixed(4)} USD
+                    </span>
+                  </div>
+                )}
+                {currentBrief.duration_seconds && (
+                  <div className="provenance-item">
+                    <span className="provenance-label">Duration</span>
+                    <span className="provenance-value">
+                      ⏱️ {formatDuration(currentBrief.duration_seconds)} ({currentBrief.duration_seconds}s)
+                    </span>
+                  </div>
+                )}
+                {currentBrief.model && (
+                  <div className="provenance-item">
+                    <span className="provenance-label">Model Engine</span>
+                    <span className="provenance-value" style={{ fontFamily: "var(--font-mono)", fontSize: "0.82rem" }}>
+                      ⚡ {currentBrief.model}
+                    </span>
+                  </div>
+                )}
+                {currentBrief.token_usage && (
+                  <div className="provenance-item">
+                    <span className="provenance-label">Token Breakdown</span>
+                    <span className="provenance-value" style={{ fontSize: "0.82rem" }}>
+                      {(currentBrief.token_usage.input || 0).toLocaleString()} in / {(currentBrief.token_usage.output || 0).toLocaleString()} out
+                      {currentBrief.total_tokens ? ` (${currentBrief.total_tokens.toLocaleString()} total)` : ""}
+                    </span>
+                  </div>
+                )}
                 <div className="provenance-item">
                   <span className="provenance-label">Published</span>
                   <span className="provenance-value">
@@ -436,9 +520,16 @@ export default function App() {
 
           <div className="feed-header">
             <h2 className="feed-title">Recent Investigations</h2>
-            <span style={{ fontSize: "0.85rem", color: "var(--ink-muted)" }}>
-              {briefs.length} {briefs.length === 1 ? "brief" : "briefs"}
-            </span>
+            <div className="feed-stats">
+              <span className="stat-pill">
+                <strong>{briefs.length}</strong> {briefs.length === 1 ? "brief" : "briefs"}
+              </span>
+              {totalSpend > 0 && (
+                <span className="stat-pill" title={`Total spent on generation across ${briefs.length} briefs`}>
+                  Spend: <strong>${totalSpend < 0.01 ? totalSpend.toFixed(4) : totalSpend.toFixed(2)}</strong>
+                </span>
+              )}
+            </div>
           </div>
 
           {loading && <div className="loading">Searching research archive…</div>}
@@ -455,6 +546,21 @@ export default function App() {
                 <div className="card-top">
                   <h3 className="card-title">{b.title}</h3>
                   <div className="badge-row">
+                    {b.cost_usd !== null && b.cost_usd !== undefined && (
+                      <span className="badge badge-cost" title={`Estimated generation cost: $${b.cost_usd}`}>
+                        💰 {formatCost(b.cost_usd)}
+                      </span>
+                    )}
+                    {b.duration_seconds && (
+                      <span className="badge badge-duration" title={`Duration: ${b.duration_seconds}s`}>
+                        ⏱️ {formatDuration(b.duration_seconds)}
+                      </span>
+                    )}
+                    {b.model && (
+                      <span className="badge badge-model" title={`Model: ${b.model}`}>
+                        ⚡ {formatModel(b.model)}
+                      </span>
+                    )}
                     <span className="badge badge-category">
                       {b.category}
                       {b.subcategory ? ` / ${b.subcategory}` : ""}

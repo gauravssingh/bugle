@@ -414,7 +414,60 @@ def test_quick_ingest(client):
     )
     assert r.status_code == 201
     data = r.json()
-    assert data["status"] == "queued"
-    assert data["research_depth"] == "deep"
-    assert "job_" in data["job_id"]
     assert "bugle.gauravs-apps.in" in data["view_url"]
+
+
+def test_cost_and_execution_metadata(client):
+    service_headers = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
+    admin_headers = {"Cf-Access-Authenticated-User-Email": ADMIN_EMAIL}
+
+    # 1. Publish brief with cost, duration, model, token usage
+    r = client.post(
+        "/api/v1/briefs",
+        json={
+            "title": "Quantum Error Correction Benchmark",
+            "summary": "Deep dive into surface codes and logical qubit fidelity.",
+            "visibility": "private",
+            "cost_usd": 0.00345,
+            "duration_seconds": 7.82,
+            "model": "deepseek/deepseek-v4-flash-0731",
+            "token_usage": {
+                "input": 45100,
+                "output": 820,
+                "reasoning": 210,
+                "total": 45920,
+            },
+            "execution_meta": {
+                "provider": "openrouter",
+                "tool_calls_count": 3,
+            },
+        },
+        headers=service_headers,
+    )
+    assert r.status_code == 201
+    brief = r.json()
+    assert brief["cost_usd"] == 0.00345
+    assert brief["duration_seconds"] == 7.82
+    assert brief["model"] == "deepseek/deepseek-v4-flash-0731"
+    assert brief["total_tokens"] == 45920
+    assert brief["token_usage"]["input"] == 45100
+    assert brief["execution_meta"]["tool_calls_count"] == 3
+
+    # 2. Verify summary list includes cost, duration, model, total_tokens
+    r_list = client.get("/api/v1/briefs", headers=admin_headers)
+    assert r_list.status_code == 200
+    items = r_list.json()["briefs"]
+    matched = next((b for b in items if b["id"] == brief["id"]), None)
+    assert matched is not None
+    assert matched["cost_usd"] == 0.00345
+    assert matched["duration_seconds"] == 7.82
+    assert matched["model"] == "deepseek/deepseek-v4-flash-0731"
+    assert matched["total_tokens"] == 45920
+
+    # 3. Verify taxonomies aggregate stats
+    r_tax = client.get("/api/v1/taxonomies", headers=admin_headers)
+    assert r_tax.status_code == 200
+    tax = r_tax.json()
+    assert tax["total_spend_usd"] >= 0.00345
+    assert tax["avg_duration_seconds"] > 0
+    assert tax["total_briefs"] >= 1

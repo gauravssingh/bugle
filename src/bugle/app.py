@@ -185,6 +185,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             research_depth=payload.research_depth,
             status="pending",
             execution_meta=payload.execution_meta,
+            cost_usd=payload.cost_usd,
+            duration_seconds=payload.duration_seconds,
+            model=payload.model,
+            token_usage=payload.token_usage,
         )
         db_session.add(job)
         db_session.commit()
@@ -224,6 +228,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 job.completed_at = now_utc()
         if payload.execution_meta is not None:
             job.execution_meta = payload.execution_meta
+        if payload.cost_usd is not None:
+            job.cost_usd = payload.cost_usd
+        if payload.duration_seconds is not None:
+            job.duration_seconds = payload.duration_seconds
+        if payload.model is not None:
+            job.model = payload.model
+        if payload.token_usage is not None:
+            job.token_usage = payload.token_usage
         if payload.completed_at is not None:
             job.completed_at = payload.completed_at
 
@@ -323,6 +335,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             research_depth=brief.research_depth,
             source_count=brief.source_count,
             claim_count=brief.claim_count,
+            cost_usd=brief.cost_usd,
+            duration_seconds=brief.duration_seconds,
+            model=brief.model,
+            token_usage=brief.token_usage,
+            total_tokens=brief.total_tokens,
+            execution_meta=brief.execution_meta or {},
             research_started_at=brief.research_started_at,
             research_completed_at=brief.research_completed_at,
             published_at=brief.published_at,
@@ -372,6 +390,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             visibility=payload.visibility,
             research_type=payload.research_type,
             research_depth=payload.research_depth,
+            cost_usd=payload.cost_usd,
+            duration_seconds=payload.duration_seconds,
+            model=payload.model,
+            token_usage=payload.token_usage,
+            execution_meta=payload.execution_meta,
             research_started_at=payload.research_started_at,
             research_completed_at=payload.research_completed_at,
             source_count=len(payload.sources),
@@ -428,6 +451,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 job.status = "completed"
                 if not job.completed_at:
                     job.completed_at = now_utc()
+                if payload.cost_usd is not None and job.cost_usd is None:
+                    job.cost_usd = payload.cost_usd
+                if payload.duration_seconds is not None and job.duration_seconds is None:
+                    job.duration_seconds = payload.duration_seconds
+                if payload.model is not None and job.model is None:
+                    job.model = payload.model
+                if payload.token_usage is not None and job.token_usage is None:
+                    job.token_usage = payload.token_usage
 
         db_session.commit()
 
@@ -559,6 +590,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             brief.confidence = payload.confidence
         if payload.visibility is not None:
             brief.visibility = payload.visibility
+        if payload.cost_usd is not None:
+            brief.cost_usd = payload.cost_usd
+        if payload.duration_seconds is not None:
+            brief.duration_seconds = payload.duration_seconds
+        if payload.model is not None:
+            brief.model = payload.model
+        if payload.token_usage is not None:
+            brief.token_usage = payload.token_usage
+        if payload.execution_meta is not None:
+            brief.execution_meta = payload.execution_meta
 
         db_session.commit()
         db_session.refresh(brief)
@@ -618,7 +659,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for t, count in sorted(tag_counts.items(), key=lambda x: -x[1])
         ]
 
-        return TaxonomiesRead(categories=categories, tags=tags)
+        total_spend = sum(b.cost_usd for b in briefs if b.cost_usd is not None)
+        durations = [b.duration_seconds for b in briefs if b.duration_seconds is not None]
+        avg_duration = (sum(durations) / len(durations)) if durations else 0.0
+
+        return TaxonomiesRead(
+            categories=categories,
+            tags=tags,
+            total_spend_usd=round(total_spend, 6),
+            avg_duration_seconds=round(avg_duration, 2),
+            total_briefs=len(briefs),
+        )
 
     # ---------------- Legacy / Backward Compatible Endpoints ----------------
 

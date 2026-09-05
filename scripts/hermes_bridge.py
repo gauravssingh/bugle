@@ -22,13 +22,49 @@ import json
 import os
 from pathlib import Path
 import re
+import sqlite3
 import subprocess
 import sys
+import time
 import urllib.request
 
 DEFAULT_BUGLE_URL = os.environ.get("BUGLE_URL", "http://127.0.0.1:8480")
 DEFAULT_SERVICE_TOKEN = os.environ.get("BUGLE_SERVICE_TOKEN", "hermes_local_dev_token")
 HERMES_ENV_PATH = Path.home() / ".hermes" / ".env"
+HERMES_STATE_PATH = Path.home() / ".hermes" / "state.db"
+
+
+def get_hermes_session_metrics() -> dict:
+    """Extract model, token usage, cost, and duration from the latest Hermes session."""
+    if not HERMES_STATE_PATH.exists():
+        return {}
+    try:
+        con = sqlite3.connect(str(HERMES_STATE_PATH))
+        cur = con.cursor()
+        row = cur.execute(
+            "SELECT model, input_tokens, output_tokens, reasoning_tokens, estimated_cost_usd, tool_call_count, started_at, ended_at "
+            "FROM sessions WHERE model IS NOT NULL ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        con.close()
+        if not row:
+            return {}
+        model, in_tok, out_tok, r_tok, cost, tool_count, started, ended = row
+        duration = (ended - started) if (ended and started) else None
+        return {
+            "model": model,
+            "token_usage": {
+                "input": in_tok or 0,
+                "output": out_tok or 0,
+                "reasoning": r_tok or 0,
+                "total": (in_tok or 0) + (out_tok or 0),
+            },
+            "cost_usd": cost,
+            "duration_seconds": round(duration, 2) if duration else None,
+            "tool_calls_count": tool_count,
+        }
+    except Exception as e:
+        print(f"[hermes_bridge] Notice: Unable to read session metrics from state.db: {e}", file=sys.stderr)
+        return {}
 
 
 def load_env_file(path: Path) -> dict[str, str]:
@@ -203,6 +239,7 @@ def execute_pipeline(topic: str, depth: str = "standard", input_job_id: str | No
     request_bugle(f"/api/v1/jobs/{job_id}", method="PATCH", data={"status": "running"})
 
     # 3. Hermes Investigation
+    t0 = time.time()
     try:
         markdown_result = run_hermes_investigation(topic, depth)
     except Exception as e:
@@ -212,22 +249,40 @@ def execute_pipeline(topic: str, depth: str = "standard", input_job_id: str | No
             data={"status": "failed", "execution_meta": {"error": str(e)}},
         )
         raise
+    measured_duration = round(time.time() - t0, 2)
+    metrics = get_hermes_session_metrics()
 
     # 4. Synthesize Brief Payload
     brief_payload = parse_brief_from_markdown(topic, markdown_result, job_id, depth)
+    brief_payload["cost_usd"] = metrics.get("cost_usd")
+    brief_payload["duration_seconds"] = metrics.get("duration_seconds") or measured_duration
+    brief_payload["model"] = metrics.get("model")
+    brief_payload["token_usage"] = metrics.get("token_usage")
+    if metrics.get("tool_calls_count"):
+        brief_payload.setdefault("execution_meta", {})["tool_calls_count"] = metrics["tool_calls_count"]
 
     # 5. Publish to Bugle
     published = request_bugle("/api/v1/briefs", method="POST", data=brief_payload)
     brief_id = published["id"]
     public_url = f"https://bugle.gauravs-apps.in/#/brief/{brief_id}"
     print(f"\n[hermes_bridge] SUCCESS! Published brief: {brief_id}")
+    if published.get("cost_usd") is not None:
+        print(f"[hermes_bridge] Cost: ${published['cost_usd']:.4f} USD")
+    if published.get("duration_seconds") is not None:
+        print(f"[hermes_bridge] Duration: {published['duration_seconds']}s")
+    if published.get("model"):
+        print(f"[hermes_bridge] Model: {published['model']}")
     print(f"[hermes_bridge] URL: {public_url}\n")
 
     # 6. Telegram Alert
+    cost_badge = f" | 💰 `${published['cost_usd']:.4f}`" if published.get("cost_usd") is not None else ""
+    dur_badge = f" | ⏱️ `{published['duration_seconds']}s`" if published.get("duration_seconds") is not None else ""
+    model_badge = f"\nModel: `{published['model']}`" if published.get("model") else ""
+
     telegram_msg = (
         f"🎺 *Bugle Investigation Complete*\n\n"
         f"*{published.get('title', topic)}*\n"
-        f"Depth: `{depth}` | Sources: {published.get('source_count', 0)}\n\n"
+        f"Depth: `{depth}` | Sources: {published.get('source_count', 0)}{cost_badge}{dur_badge}{model_badge}\n\n"
         f"{published.get('summary', '')[:200]}...\n\n"
         f"🔗 [Read Full Brief in Bugle]({public_url})"
     )

@@ -13,6 +13,7 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -71,6 +72,10 @@ class ResearchJob(Base):
         String(50), default="pending"
     )  # pending | running | completed | failed | cancelled
     execution_meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    token_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc
     )
@@ -114,6 +119,11 @@ class Brief(Base):
     research_depth: Mapped[str] = mapped_column(String(50), default="standard")
     source_count: Mapped[int] = mapped_column(Integer, default=0)
     claim_count: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    token_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    execution_meta: Mapped[dict] = mapped_column(JSON, default=dict)
     research_started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -145,6 +155,17 @@ class Brief(Base):
         cascade="all, delete-orphan",
         order_by="Claim.id",
     )
+
+    @property
+    def total_tokens(self) -> int | None:
+        if self.token_usage and isinstance(self.token_usage, dict):
+            tot = self.token_usage.get("total") or self.token_usage.get("total_tokens")
+            if tot is not None:
+                return int(tot)
+            inp = self.token_usage.get("input") or self.token_usage.get("input_tokens") or 0
+            out = self.token_usage.get("output") or self.token_usage.get("output_tokens") or 0
+            return int(inp) + int(out)
+        return None
 
 
 class Source(Base):
@@ -229,7 +250,43 @@ class Database:
         self.settings = settings
         self.engine = _build_engine(settings)
         Base.metadata.create_all(self.engine)
+        self._auto_migrate_schema()
         self.session_factory = sessionmaker(self.engine, expire_on_commit=False)
+
+    def _auto_migrate_schema(self):
+        with self.engine.connect() as conn:
+            # Check briefs table columns
+            brief_cols = {
+                row[1]
+                for row in conn.exec_driver_sql("PRAGMA table_info(briefs)").fetchall()
+            }
+            if brief_cols:
+                if "cost_usd" not in brief_cols:
+                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN cost_usd REAL")
+                if "duration_seconds" not in brief_cols:
+                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN duration_seconds REAL")
+                if "model" not in brief_cols:
+                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN model VARCHAR(100)")
+                if "token_usage" not in brief_cols:
+                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN token_usage JSON")
+                if "execution_meta" not in brief_cols:
+                    conn.exec_driver_sql("ALTER TABLE briefs ADD COLUMN execution_meta JSON DEFAULT '{}'")
+
+            # Check research_jobs table columns
+            job_cols = {
+                row[1]
+                for row in conn.exec_driver_sql("PRAGMA table_info(research_jobs)").fetchall()
+            }
+            if job_cols:
+                if "cost_usd" not in job_cols:
+                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN cost_usd REAL")
+                if "duration_seconds" not in job_cols:
+                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN duration_seconds REAL")
+                if "model" not in job_cols:
+                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN model VARCHAR(100)")
+                if "token_usage" not in job_cols:
+                    conn.exec_driver_sql("ALTER TABLE research_jobs ADD COLUMN token_usage JSON")
+            conn.commit()
 
     def session(self):
         return self.session_factory()

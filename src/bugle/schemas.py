@@ -25,11 +25,19 @@ class JobCreate(BaseModel):
     research_type: str = Field(default="general", max_length=50)
     research_depth: str = Field(default="standard", max_length=50)
     execution_meta: dict[str, Any] = Field(default_factory=dict)
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    token_usage: dict[str, Any] | None = None
 
 
 class JobUpdate(BaseModel):
     status: str | None = None  # pending | running | completed | failed | cancelled
     execution_meta: dict[str, Any] | None = None
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    token_usage: dict[str, Any] | None = None
     completed_at: datetime | None = None
 
 
@@ -40,6 +48,10 @@ class JobRead(BaseModel):
     research_depth: str
     status: str
     execution_meta: dict[str, Any]
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    token_usage: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
@@ -133,6 +145,11 @@ class BriefCreate(BaseModel):
     visibility: str = Field(default="private", max_length=20)  # private | public
     research_type: str = Field(default="general", max_length=50)
     research_depth: str = Field(default="standard", max_length=50)
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    token_usage: dict[str, Any] | None = None
+    execution_meta: dict[str, Any] = Field(default_factory=dict)
     research_started_at: datetime | None = None
     research_completed_at: datetime | None = None
     sources: list[SourceCreate] = Field(default_factory=list)
@@ -148,6 +165,11 @@ class BriefUpdate(BaseModel):
     tags: list[str] | None = None
     confidence: str | None = None
     visibility: str | None = None  # private | public
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    token_usage: dict[str, Any] | None = None
+    execution_meta: dict[str, Any] | None = None
 
 
 class BriefSummaryRead(BaseModel):
@@ -164,6 +186,10 @@ class BriefSummaryRead(BaseModel):
     research_depth: str
     source_count: int
     claim_count: int
+    cost_usd: float | None = None
+    duration_seconds: float | None = None
+    model: str | None = None
+    total_tokens: int | None = None
     published_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -173,6 +199,8 @@ class BriefSummaryRead(BaseModel):
 
 class BriefDetailRead(BriefSummaryRead):
     content_markdown: str
+    token_usage: dict[str, Any] | None = None
+    execution_meta: dict[str, Any] = Field(default_factory=dict)
     research_started_at: datetime | None
     research_completed_at: datetime | None
     sources: list[SourceRead] = Field(default_factory=list)
@@ -200,6 +228,9 @@ class TaxonomyTag(BaseModel):
 class TaxonomiesRead(BaseModel):
     categories: list[TaxonomyCategory]
     tags: list[TaxonomyTag]
+    total_spend_usd: float = 0.0
+    avg_duration_seconds: float = 0.0
+    total_briefs: int = 0
 
 
 # ---------------- Backward Compatibility ----------------

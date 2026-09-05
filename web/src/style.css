@@ -198,15 +198,52 @@ body {
 }
 
 .badge-depth-standard {
-  background: var(--info-dim);
-  color: var(--info);
-  border: 1px solid rgba(88, 166, 255, 0.4);
-}
-
-.badge-depth-fast {
   background: var(--bg-tertiary);
   color: var(--ink-secondary);
   border: 1px solid var(--border);
+}
+
+.badge-cost {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--success);
+  border: 1px solid rgba(63, 185, 80, 0.35);
+}
+
+.badge-duration {
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--info);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+.badge-model {
+  background: var(--bg-tertiary);
+  color: var(--ink-secondary);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  text-transform: none;
+  font-size: 0.7rem;
+}
+
+.feed-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  color: var(--ink-secondary);
+}
+
+.stat-pill strong {
+  color: var(--ink);
 }
 
 .badge-private {
