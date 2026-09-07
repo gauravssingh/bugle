@@ -6,6 +6,7 @@ import {
   IconHome,
   IconSearch,
   IconStar,
+  IconTable,
   IconUser,
 } from "./components/Icons";
 import { SystemHealthModal } from "./components/SystemHealthModal";
@@ -54,6 +55,7 @@ function AppContent() {
   const [briefs, setBriefs] = useState<BriefSummary[]>([]);
   const [search, setSearch] = useState("");
   const [archiveCategory, setArchiveCategory] = useState<string>("all");
+  const [archiveViewMode, setArchiveViewMode] = useState<"cards" | "table">("cards");
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const [taxonomies, setTaxonomies] = useState<Taxonomies | null>(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
@@ -155,9 +157,14 @@ function AppContent() {
           setSearch(params.get("q") || "");
         } else if (route === "#/saved") {
           setActiveTab("saved");
-        } else if (route === "#/archive") {
+        } else if (route === "#/archive" || route === "#/table" || route === "#/ledger") {
           setActiveTab("archive");
           setArchiveCategory(params.get("category") || "all");
+          if (route === "#/table" || route === "#/ledger" || params.get("view") === "table") {
+            setArchiveViewMode("table");
+          } else if (params.get("view") === "cards") {
+            setArchiveViewMode("cards");
+          }
         } else if (route === "#/profile") {
           setActiveTab("profile");
         } else {
@@ -177,12 +184,15 @@ function AppContent() {
       const query = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : "";
       window.history.replaceState(null, "", `#/${activeTab}${query}`);
     } else if (activeTab === "archive") {
-      const query = archiveCategory !== "all" ? `?category=${encodeURIComponent(archiveCategory)}` : "";
+      const qParams = new URLSearchParams();
+      if (archiveCategory !== "all") qParams.set("category", archiveCategory);
+      if (archiveViewMode === "table") qParams.set("view", "table");
+      const query = qParams.toString() ? `?${qParams.toString()}` : "";
       window.history.replaceState(null, "", `#/${activeTab}${query}`);
     } else if (activeTab === "profile") {
       window.history.replaceState(null, "", `#/profile`);
     }
-  }, [activeTab, archiveCategory, currentBriefId, search]);
+  }, [activeTab, archiveCategory, archiveViewMode, currentBriefId, search]);
 
   // Fetch Auth context
   useEffect(() => {
@@ -392,12 +402,27 @@ function AppContent() {
             </button>
 
             <button
-              className={`sidebar-nav-item ${activeTab === "archive" && !currentBriefId ? "active" : ""}`}
-              onClick={() => switchTab("archive")}
+              className={`sidebar-nav-item ${activeTab === "archive" && archiveViewMode === "cards" && !currentBriefId ? "active" : ""}`}
+              onClick={() => {
+                setArchiveViewMode("cards");
+                switchTab("archive");
+              }}
             >
               <IconArchive className="sidebar-nav-icon" />
               <span className="sidebar-nav-label">Full Catalogue</span>
               <span className="sidebar-badge-muted">{briefs.length}</span>
+            </button>
+
+            <button
+              className={`sidebar-nav-item ${activeTab === "archive" && archiveViewMode === "table" && !currentBriefId ? "active" : ""}`}
+              onClick={() => {
+                setArchiveViewMode("table");
+                switchTab("archive");
+              }}
+            >
+              <IconTable className="sidebar-nav-icon" />
+              <span className="sidebar-nav-label">Metadata Ledger</span>
+              <span className="sidebar-badge-pill">Table</span>
             </button>
           </nav>
 
@@ -587,6 +612,8 @@ function AppContent() {
                   onOpenBrief={openBrief}
                   onToggleSave={toggleSave}
                   onShare={handleShare}
+                  viewMode={archiveViewMode}
+                  onViewModeChange={setArchiveViewMode}
                 />
               )}
 
@@ -594,6 +621,7 @@ function AppContent() {
                 <ProfilePage
                   auth={auth}
                   modelInfo={modelInfo}
+                  briefs={briefs}
                   totalSpend={totalSpend}
                   briefsCount={briefs.length}
                   savedCount={savedIds.length}
@@ -606,6 +634,7 @@ function AppContent() {
                   }}
                   onOpenHealthModal={() => setShowHealthModal(true)}
                   onSwitchTab={switchTab}
+                  onOpenBrief={openBrief}
                 />
               )}
             </div>

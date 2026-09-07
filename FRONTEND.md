@@ -141,8 +141,8 @@ All badge variants share the exact same physical dimensions:
 | `home` | `#/` | [`FeedPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/FeedPage.tsx) | Clean blog-style stream with featured lead investigation. |
 | `search` | `#/search` | [`SearchPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/SearchPage.tsx) | Full-page search with frequency-capped topic chips, debounced search, and recent queries. |
 | `saved` | `#/saved` | [`SavedPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/SavedPage.tsx) | Curated bookmark collection stored in `localStorage`. |
-| `archive` | `#/archive` | [`ArchivePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ArchivePage.tsx) | Complete archive catalogued by category domain with spend metrics. |
-| `profile` | `#/profile` | [`ProfilePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ProfilePage.tsx) | Responsive operator dashboard: identity, model engine, spend analytics, and DB telemetry. |
+| `archive` | `#/archive`, `#/table`, `#/ledger` | [`ArchivePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ArchivePage.tsx) | Complete archive with dual Cards / Table Ledger view switcher, category filtering, and telemetry. |
+| `profile` | `#/profile` | [`ProfilePage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/ProfilePage.tsx) | Responsive operator dashboard: identity, model engine, spend analytics, full bugles metadata ledger, and DB telemetry. |
 | `brief` | `#/brief/:id` | [`BriefDetailPage.tsx`](file:///Users/gauravsingh/projects/bugle/web/src/pages/BriefDetailPage.tsx) | Editorial detail document view with markdown body, claims matrix, and primary sources. |
 
 ---
@@ -182,7 +182,8 @@ web/src/
 ├── components/
 │   ├── Badge.tsx           # Reusable Badge design system & inline metadata components
 │   ├── BriefCard.tsx       # Reading-first investigation card
-│   ├── Icons.tsx           # Optical SVG icons (Home, Search, Star, Archive, Coins, Lock, etc.)
+│   ├── Icons.tsx           # Optical SVG icons (Home, Search, Star, Archive, Coins, Lock, Table, etc.)
+│   ├── BriefsMetadataTable.tsx # Interactive high-level telemetry & cost table with KPIs and CSV export
 │   ├── RevisionsDrawer.tsx # Slide-out audit drawer for historical brief revisions
 │   └── SystemHealthModal.tsx # Real-time SQLite PRAGMA checks & schema diagnostics
 ├── pages/

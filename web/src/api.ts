@@ -31,6 +31,12 @@ export type BriefSummary = {
   duration_seconds: number | null;
   model: string | null;
   total_tokens: number | null;
+  token_usage?: {
+    input?: number;
+    output?: number;
+    reasoning?: number;
+    total?: number;
+  } | null;
   published_at: string;
   created_at: string;
 };

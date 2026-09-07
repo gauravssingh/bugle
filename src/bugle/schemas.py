@@ -210,6 +210,7 @@ class BriefSummaryRead(BaseModel):
     duration_seconds: float | None = None
     model: str | None = None
     total_tokens: int | None = None
+    token_usage: dict[str, Any] | None = None
     published_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -219,7 +220,6 @@ class BriefSummaryRead(BaseModel):
 
 class BriefDetailRead(BriefSummaryRead):
     content_markdown: str
-    token_usage: dict[str, Any] | None = None
     execution_meta: dict[str, Any] = Field(default_factory=dict)
     research_started_at: datetime | None
     research_completed_at: datetime | None

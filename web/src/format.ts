@@ -31,6 +31,18 @@ export function formatModel(model: string | null | undefined): string | null {
   return name.replace(/-0731|-exp/g, "");
 }
 
+export function formatTokens(tokens: number | null | undefined): string | null {
+  if (tokens === null || tokens === undefined) return null;
+  return tokens.toLocaleString();
+}
+
+export function formatCompactNumber(num: number | null | undefined): string | null {
+  if (num === null || num === undefined) return null;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
+  return num.toString();
+}
+
 export function formatTime(iso: string | null): string {
   if (!iso) return "Unknown";
   try {

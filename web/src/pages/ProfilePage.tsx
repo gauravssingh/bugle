@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AuthInfo } from "../api";
+import type { AuthInfo, BriefSummary } from "../api";
 import {
   IconArchive,
   IconCpu,
@@ -7,7 +7,9 @@ import {
   IconHistory,
   IconRefresh,
   IconStar,
+  IconTable,
 } from "../components/Icons";
+import { BriefsMetadataTable } from "../components/BriefsMetadataTable";
 import { formatCost, getOperatorInitials } from "../format";
 
 interface ProfilePageProps {
@@ -17,6 +19,7 @@ interface ProfilePageProps {
     formatted: string;
     provider: string;
   };
+  briefs: BriefSummary[];
   totalSpend: number;
   briefsCount: number;
   savedCount: number;
@@ -26,11 +29,13 @@ interface ProfilePageProps {
   onClearRecentSearches: () => void;
   onOpenHealthModal: () => void;
   onSwitchTab: (tab: "home" | "search" | "saved" | "archive" | "profile") => void;
+  onOpenBrief: (id: string) => void;
 }
 
 export function ProfilePage({
   auth,
   modelInfo,
+  briefs,
   totalSpend,
   briefsCount,
   savedCount,
@@ -40,6 +45,7 @@ export function ProfilePage({
   onClearRecentSearches,
   onOpenHealthModal,
   onSwitchTab,
+  onOpenBrief,
 }: ProfilePageProps) {
   const [refreshed, setRefreshed] = useState(false);
   const operatorEmail = auth?.email || "gaurav.singh.86@gmail.com";
@@ -146,6 +152,19 @@ export function ProfilePage({
               <span className="metric-row-label">Billing Model</span>
               <span className="metric-row-val">Token Metered API</span>
             </div>
+          </div>
+
+          <div className="profile-card-actions">
+            <button
+              type="button"
+              className="btn-card-action"
+              onClick={() => {
+                document.getElementById("profile-ledger-table")?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              <IconTable className="btn-action-svg" />
+              <span>View Bugles Metadata Table</span>
+            </button>
           </div>
         </div>
 
@@ -278,6 +297,17 @@ export function ProfilePage({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Full-width Bugles Metadata & Execution Ledger */}
+      <div id="profile-ledger-table" className="profile-ledger-section">
+        <BriefsMetadataTable
+          briefs={briefs}
+          onOpenBrief={onOpenBrief}
+          title="All Bugles Telemetry & Cost Ledger"
+          subtitle="Complete high-level metadata across all synthesized investigations: generation cost (USD / INR), pipeline execution duration, AI model engine, token consumption, and evidence grounding."
+          showKpis={true}
+        />
       </div>
     </section>
   );

@@ -463,6 +463,8 @@ def test_cost_and_execution_metadata(client):
     assert matched["duration_seconds"] == 7.82
     assert matched["model"] == "deepseek/deepseek-v4-flash-0731"
     assert matched["total_tokens"] == 45920
+    assert matched["token_usage"]["input"] == 45100
+    assert matched["token_usage"]["output"] == 820
 
     # 3. Verify taxonomies aggregate stats
     r_tax = client.get("/api/v1/taxonomies", headers=admin_headers)
